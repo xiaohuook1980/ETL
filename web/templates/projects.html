@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}项目注册{% endblock %}
+
+{% block content %}
+<style>
+    .stat-box { background:#fff; border:1px solid #e3e6f0; border-radius:6px; padding:12px 16px; text-align:center; }
+    .stat-box .num { font-size:22px; font-weight:bold; }
+    .stat-box .lbl { font-size:12px; color:#888; }
+    table.tbl-projects td, table.tbl-projects th { vertical-align: middle; font-size:14px; }
+    .modal-overlay {
+        position:fixed; inset:0; background:rgba(0,0,0,0.5);
+        display:none; align-items:center; justify-content:center; z-index:1050;
+    }
+    .modal-overlay.show { display:flex; }
+    .modal-card { background:#fff; border-radius:8px; max-width:640px; width:92%; max-height:88vh; overflow-y:auto; }
+</style>
+
+<!-- 顶部：返回 + 标题 -->
+<div class="d-flex align-items-center mb-3 mt-3">
+    <a href="/" class="btn btn-outline-secondary btn-sm">&larr; 返回首页</a>
+    <h5 class="mb-0 ms-3">项目注册</h5>
+    <span class="text-muted small ms-2">仅注册过的项目能在出款申请中搜索到</span>
+</div>
+
+<!-- 同步控件条 -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button id="btn-sync-incremental" class="btn btn-outline-primary btn-sm">📅 增量拉取</button>
+            <span class="text-muted small">该日期之后老库新建的项目</span>
+            <input type="date" id="input-since-date" class="form-control form-control-sm" style="max-width:160px;">
+            <span class="ms-auto text-muted small">最近同步：<span id="last-sync-at">--</span></span>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap mt-2 pt-2 border-top">
+            <button id="btn-sync-one" class="btn btn-outline-primary btn-sm">🎯 按项目拉取</button>
+            <span class="text-muted small">劳务公司 / 项目名（任填一个或都填，子串匹配）</span>
+            <input type="text" id="input-ent-keyword" class="form-control form-control-sm" placeholder="劳务公司关键字" style="max-width:200px;">
+            <input type="text" id="input-proj-keyword" class="form-control form-control-sm" placeholder="项目名关键字" style="max-width:200px;">
+        </div>
+        <div id="sync-result" class="alert alert-success small p-2 mt-2 mb-0 d-none"></div>
+    </div>
+</div>
+
+<!-- 统计 3 块 -->
+<div class="row g-2 mb-3">
+    <div class="col-md-4"><div class="stat-box"><div class="num" id="stat-total">--</div><div class="lbl">线上总项目</div></div></div>
+    <div class="col-md-4"><div class="stat-box" style="border-left:3px solid #28a745;"><div class="num text-success" id="stat-registered">--</div><div class="lbl">已注册</div></div></div>
+    <div class="col-md-4"><div class="stat-box" style="border-left:3px solid #ffc107;"><div class="num text-warning" id="stat-unregistered">--</div><div class="lbl">未注册</div></div></div>
+</div>
+
+<!-- 筛选 -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="btn-group btn-group-sm" role="group" id="status-filter">
+                <button class="btn btn-outline-primary" data-status="">全部</button>
+                <button class="btn btn-primary" data-status="registered">已注册</button>
+                <button class="btn btn-outline-primary" data-status="unregistered">未注册</button>
+            </div>
+            <select id="filter-company" class="form-select form-select-sm" style="max-width:200px;">
+                <option value="">全部劳务公司</option>
+            </select>
+            <input type="text" id="filter-keyword" class="form-control form-control-sm" placeholder="搜索项目名" style="max-width:240px;">
+            <span class="ms-auto text-muted small">共 <span id="result-count">0</span> 个项目</span>
+        </div>
+    </div>
+</div>
+
+<!-- 项目表 -->
+<div class="card">
+    <table class="table table-sm table-hover mb-0 tbl-projects">
+        <thead class="table-light">
+            <tr>
+                <th style="width:140px;">劳务公司</th>
+                <th>项目</th>
+                <th style="width:130px;">线上 ID</th>
+                <th style="width:80px;">状态</th>
+                <th style="width:110px;">业务周期</th>
+                <th style="width:90px;" class="text-end">代收阈值</th>
+                <th style="width:80px;" class="text-end">出款比例</th>
+                <th style="width:110px;">实控人</th>
+                <th style="width:200px;" class="text-end">操作</th>
+            </tr>
+        </thead>
+        <tbody id="tbody-projects">
+            <tr><td colspan="9" class="text-center text-muted py-4">加载中…</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- 注册/编辑 Modal -->
+<div id="modal-register" class="modal-overlay">
+    <div class="modal-card">
+        <div class="card-header bg-primary text-white d-flex justify-content-between">
+            <strong id="modal-title">注册项目</strong>
+            <button class="btn btn-sm btn-light py-0" id="modal-close">×</button>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-light border small mb-3">
+                <span id="modal-summary">--</span>
+            </div>
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <label class="form-label small mb-1">业务周期口径 <span class="text-danger">*</span></label>
+                    <select id="modal-cycle" class="form-select form-select-sm">
+                        <option value="natural">自然月</option>
+                        <option value="26_25">26 ~ 25</option>
+                        <option value="custom">自定义</option>
+                    </select>
+                </div>
+                <div class="col-md-6 d-none" id="modal-custom-block">
+                    <label class="form-label small mb-1">自定义周期起始日 <span class="text-muted small">(只填起始日, 周期=该日至次月前一日)</span></label>
+                    <input id="modal-custom-day" type="number" min="1" max="31" class="form-control form-control-sm" placeholder="如填 21 = 21 号 至 次月 20 号">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small mb-1">实控人 <span class="text-muted small">(只读 · 由企业绑定)</span></label>
+                    <input id="modal-controller" type="text" class="form-control form-control-sm" readonly style="background-color:#e9ecef;">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small mb-1">代收阈值（默认 2000）</label>
+                    <input id="modal-daishou" type="number" class="form-control form-control-sm" value="2000">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small mb-1">出款比例（默认 0.8）</label>
+                    <input id="modal-profit" type="number" step="0.01" min="0" max="1" class="form-control form-control-sm" value="0.8">
+                </div>
+            </div>
+            <div id="modal-error" class="alert alert-danger small p-2 mt-3 mb-0 d-none"></div>
+        </div>
+        <div class="card-footer text-end">
+            <button class="btn btn-outline-secondary btn-sm" id="modal-cancel">取消</button>
+            <button class="btn btn-primary btn-sm" id="modal-submit">完成注册</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/projects.js') }}"></script>
+{% endblock %}

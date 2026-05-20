@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Mock · 项目注册</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+    body { background-color: #f5f6fa; }
+    .card { border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card-header { background-color: #fff; border-bottom: 1px solid #eee; }
+    .mock-banner { background:#fff3cd; color:#664d03; padding:6px 12px; font-size:12px; text-align:center; border-bottom:1px solid #ffe69c; }
+    .stat-box { background:#fff; border:1px solid #e3e6f0; border-radius:6px; padding:12px 16px; text-align:center; }
+    .stat-box .num { font-size:22px; font-weight:bold; }
+    .stat-box .lbl { font-size:12px; color:#888; }
+    table.tbl-projects td, table.tbl-projects th { vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<div class="mock-banner">⚠️ Mock 页面（项目注册）— 用于讨论页面设计</div>
+
+<nav class="navbar navbar-dark bg-dark">
+    <div class="container"><a class="navbar-brand" href="#">小鱼风控系统</a></div>
+</nav>
+
+<div class="container mt-4">
+
+    <!-- 顶部：返回 + 标题 -->
+    <div class="d-flex align-items-center mb-3">
+        <a href="index.html" class="btn btn-outline-secondary btn-sm">&larr; 返回首页</a>
+        <h5 class="mb-0 ms-3">项目注册</h5>
+        <span class="text-muted small ms-2">仅注册过的项目能在出款申请中搜索到</span>
+    </div>
+
+    <!-- 同步控件条 -->
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <button class="btn btn-primary btn-sm">🔄 全量同步</button>
+                <span class="text-muted small">从老库一次性拉所有项目（含企业 + 实控人）</span>
+                <span class="vr mx-2"></span>
+                <button class="btn btn-outline-primary btn-sm">📅 增量拉取</button>
+                <span class="text-muted small">该日期之后老库新建的项目</span>
+                <input type="date" class="form-control form-control-sm" value="2026-05-01" style="max-width:160px;">
+                <span class="ms-auto text-muted small">最近同步：2026-05-04 18:30</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 统计概览 -->
+    <div class="row g-2 mb-3">
+        <div class="col-md-3">
+            <div class="stat-box">
+                <div class="num">23</div>
+                <div class="lbl">线上总项目</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-box" style="border-left:3px solid #28a745;">
+                <div class="num text-success">14</div>
+                <div class="lbl">已注册</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-box" style="border-left:3px solid #ffc107;">
+                <div class="num text-warning">9</div>
+                <div class="lbl">未注册</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-box" style="border-left:3px solid #6c757d;">
+                <div class="num text-muted">2</div>
+                <div class="lbl">已注销</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 筛选 + 搜索 -->
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-primary">全部</button>
+                    <button class="btn btn-outline-primary">已注册</button>
+                    <button class="btn btn-outline-primary">未注册</button>
+                    <button class="btn btn-outline-primary">已注销</button>
+                </div>
+                <select class="form-select form-select-sm" style="max-width:180px;">
+                    <option>全部劳务公司</option>
+                    <option>云优聘</option>
+                    <option>似马韶华</option>
+                    <option>蜂鸟</option>
+                </select>
+                <input type="text" class="form-control form-control-sm" placeholder="搜索项目名" style="max-width:240px;">
+                <span class="ms-auto text-muted small">共 23 个项目</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 项目列表 -->
+    <div class="card">
+        <table class="table table-sm table-hover mb-0 tbl-projects">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:140px;">劳务公司</th>
+                    <th>项目</th>
+                    <th style="width:80px;">线上 ID</th>
+                    <th style="width:80px;">状态</th>
+                    <th style="width:110px;">业务周期</th>
+                    <th style="width:90px;">代收阈值</th>
+                    <th style="width:80px;">出款比例</th>
+                    <th style="width:110px;">实控人</th>
+                    <th style="width:140px;" class="text-end">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>云优聘</td>
+                    <td><strong>康丽达</strong></td>
+                    <td><code>123</code></td>
+                    <td><span class="badge bg-success">已注册</span></td>
+                    <td>自然月</td>
+                    <td>2,000</td>
+                    <td>0.8</td>
+                    <td>张某某</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2">编辑</button>
+                        <button class="btn btn-sm btn-outline-danger py-0 px-2">注销</button>
+                    </td>
+                </tr>
+                <tr>
+                    <td>云优聘</td>
+                    <td><strong>顺丰[新]</strong></td>
+                    <td><code>124</code></td>
+                    <td><span class="badge bg-success">已注册</span></td>
+                    <td>自然月</td>
+                    <td>2,000</td>
+                    <td>0.8</td>
+                    <td>张某某</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2">编辑</button>
+                        <button class="btn btn-sm btn-outline-danger py-0 px-2">注销</button>
+                    </td>
+                </tr>
+                <tr>
+                    <td>似马韶华</td>
+                    <td><strong>新广益</strong></td>
+                    <td><code>125</code></td>
+                    <td><span class="badge bg-success">已注册</span></td>
+                    <td>26 ~ 25</td>
+                    <td>2,000</td>
+                    <td>0.85</td>
+                    <td>李某某</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2">编辑</button>
+                        <button class="btn btn-sm btn-outline-danger py-0 px-2">注销</button>
+                    </td>
+                </tr>
+                <tr class="table-warning">
+                    <td>蜂鸟</td>
+                    <td><strong>东风日产</strong></td>
+                    <td><code>131</code></td>
+                    <td><span class="badge bg-warning text-dark">未注册</span></td>
+                    <td><span class="text-muted">—</span></td>
+                    <td><span class="text-muted">—</span></td>
+                    <td><span class="text-muted">—</span></td>
+                    <td>王某某</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-primary py-0 px-3">注册</button>
+                    </td>
+                </tr>
+                <tr class="table-warning">
+                    <td>蜂鸟</td>
+                    <td><strong>广汽埃安</strong></td>
+                    <td><code>132</code></td>
+                    <td><span class="badge bg-warning text-dark">未注册</span></td>
+                    <td><span class="text-muted">—</span></td>
+                    <td><span class="text-muted">—</span></td>
+                    <td><span class="text-muted">—</span></td>
+                    <td>王某某</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-primary py-0 px-3">注册</button>
+                    </td>
+                </tr>
+                <tr class="text-muted">
+                    <td>梦寺达</td>
+                    <td><strong>水上乐园</strong></td>
+                    <td><code>118</code></td>
+                    <td><span class="badge bg-secondary">已注销</span></td>
+                    <td>自然月</td>
+                    <td>2,000</td>
+                    <td>0.8</td>
+                    <td>陈某某</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2">恢复</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 注册 modal（伪展示） -->
+    <div class="card mt-4 border-primary">
+        <div class="card-header bg-primary text-white">
+            <strong>注册项目（点"注册"按钮弹出此 modal）</strong>
+            <span class="ms-2 small">示例：蜂鸟 · 东风日产 · 线上 ID 131</span>
+        </div>
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <label class="form-label small mb-1">业务周期口径 <span class="text-danger">*</span></label>
+                    <select class="form-select form-select-sm">
+                        <option>自然月</option>
+                        <option>26 ~ 25</option>
+                        <option>1 ~ 31（其他）</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small mb-1">实控人 <span class="text-muted small">(只读 · 由企业绑定)</span></label>
+                    <input type="text" class="form-control form-control-sm" value="王某某" readonly style="background-color:#e9ecef;">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small mb-1">代收阈值（默认 2000）</label>
+                    <input type="number" class="form-control form-control-sm" value="2000">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small mb-1">出款比例（默认 0.8）</label>
+                    <input type="number" class="form-control form-control-sm" value="0.8">
+                </div>
+            </div>
+            <div class="text-end mt-3">
+                <button class="btn btn-outline-secondary btn-sm">取消</button>
+                <button class="btn btn-primary btn-sm">完成注册</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>

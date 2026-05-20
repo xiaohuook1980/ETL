@@ -1,0 +1,535 @@
+{% extends "base.html" %}
+{% block title %}数据识别 v2 (Mock) · {{ kind_label }} · {{ project_id }}{% endblock %}
+{% block content %}
+<style>
+    .rule-card { box-shadow:none; border:1px solid #e9ecef; }
+    .empty-stub { color:#999; font-size:13px; padding:8px 12px; background:#fafafa; border-radius:4px; border:1px dashed #ddd; }
+    .rule-row { display:flex; gap:8px; align-items:center; padding:6px 0; border-bottom:1px dashed #eee; font-size:13px; }
+    .rule-row:last-child { border-bottom:0; }
+    .rule-row .lbl { color:#666; font-size:12px; min-width:50px; flex-shrink:0; }
+    .rule-row .grow { flex-grow:1; }
+    .step-nav { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+    .step-nav button { border:1px solid #dde2ea; background:#fff; padding:6px 14px; border-radius:4px; cursor:pointer; font-size:14px; }
+    .step-nav button.active { background:#4a6cf7; color:#fff; border-color:#4a6cf7; }
+    .pane { display:none; }
+    .pane.active { display:block; }
+
+    /* format chips */
+    .format-bar { background:#f8f9fc; border:1px solid #e3e6f0; border-radius:6px; padding:10px 12px; margin-bottom:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .format-bar .label { color:#5a5c69; font-weight:600; font-size:13px; flex-shrink:0; }
+    .format-chip { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; background:#fff; border:1px solid #dde2ea; border-radius:18px; font-size:13px; cursor:pointer; color:#333; }
+    .format-chip:hover { border-color:#4a6cf7; color:#4a6cf7; }
+    .format-chip.active { background:#4a6cf7; color:#fff; border-color:#4a6cf7; }
+    .format-chip .badge-cnt { background:#e9ecef; color:#666; border-radius:10px; padding:1px 7px; font-size:11px; }
+    .format-chip.active .badge-cnt { background:rgba(255,255,255,.25); color:#fff; }
+    .format-chip .edit-ic { opacity:.5; }
+    .format-chip:hover .edit-ic { opacity:1; }
+    .format-chip.add { color:#4a6cf7; border-color:#4a6cf7; border-style:dashed; background:#f4f7ff; }
+
+    /* mode banner */
+    .mode-banner { background:linear-gradient(90deg,#4a6cf7 0%,#6f87ff 100%); color:#fff; padding:8px 16px; border-radius:4px; margin-bottom:14px; font-size:13px; display:flex; align-items:center; justify-content:space-between; }
+    .mode-banner a { color:#fff; text-decoration:underline; opacity:.9; }
+</style>
+
+<!-- 顶部：返回 + 标题 -->
+<div class="d-flex align-items-center mb-3 mt-3">
+    <a href="/projects" class="btn btn-outline-secondary btn-sm">&larr; 返回项目列表</a>
+    <h5 class="mb-0 ms-3">
+        数据识别 · <span class="text-primary">{{ project_id }}</span>
+        <span class="badge bg-warning text-dark ms-2">Mock · format 模式</span>
+    </h5>
+    <div class="ms-auto d-flex gap-2">
+        <a class="btn btn-sm btn-outline-secondary" href="/projects/{{ project_id }}/classify/{{ kind }}">← 老版页面</a>
+    </div>
+</div>
+
+<!-- 模式横幅 -->
+<div class="mode-banner">
+    <div>
+        <strong>📐 format 模式已启用</strong>
+        <span class="ms-2 opacity-75">每个维度可有 N 个 format（数据结构），全套配置（特征列/列映射/企业归属/项目归属/有效性/pivot）按 format 独立维护</span>
+    </div>
+    <span><a href="#" onclick="alert('mock 阶段不实际切回');return false;">禁用 format 模式 →</a></span>
+</div>
+
+<!-- 4 类切换 -->
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><a class="nav-link {% if kind=='attendance' %}active{% endif %}" href="/projects/{{ project_id }}/classify-v2/attendance">考勤 attendance</a></li>
+    <li class="nav-item"><a class="nav-link {% if kind=='bill' %}active{% endif %}" href="/projects/{{ project_id }}/classify-v2/bill">账单 bill</a></li>
+    <li class="nav-item"><a class="nav-link {% if kind=='wage_sheet' %}active{% endif %}" href="/projects/{{ project_id }}/classify-v2/wage_sheet">工资表 wage_sheet</a></li>
+    <li class="nav-item"><a class="nav-link {% if kind=='payroll' %}active{% endif %}" href="/projects/{{ project_id }}/classify-v2/payroll">发薪流水 payroll</a></li>
+</ul>
+
+<!-- format 选择条 -->
+<div class="format-bar" id="format-bar">
+    <span class="label">📋 format：</span>
+    <div id="format-chips" class="d-flex gap-2 flex-wrap"></div>
+    <button class="btn btn-sm btn-outline-primary py-0 px-3 ms-auto" onclick="newFormat()">+ 新建 format</button>
+    <button class="btn btn-sm btn-outline-secondary py-0 px-3" onclick="renameFormat()">✏️ 重命名</button>
+    <button class="btn btn-sm btn-outline-danger py-0 px-3" onclick="deleteFormat()">🗑 删除</button>
+</div>
+
+<!-- 当前 format 的说明 -->
+<div class="alert alert-light border small p-2 mb-3" id="format-desc">
+    <span class="text-muted">选中 format 后下方 6 步配置全部属于该 format；切换 format 配置独立。</span>
+</div>
+
+<!-- 6 步骤入口 -->
+<div class="step-nav" id="step-nav">
+    <button class="active" data-pane="step1">特征列</button>
+    <button data-pane="step2">企业归属</button>
+    <button data-pane="step3">项目归属</button>
+    <button data-pane="step4">列映射</button>
+    <button data-pane="step5">数据过滤</button>
+    <button data-pane="step6" id="step6-btn">{{ '单价配置' if kind == 'attendance' else 'pivot 模板' if kind == 'attendance' else '' }}</button>
+</div>
+
+<!-- step1 特征列 -->
+<div class="pane active" id="step1">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>特征列</strong>
+            <span class="text-muted small ms-2">这条 format 的指纹 — 表头里必须含的列名（空格分隔）。命中即按本 format 解析</span>
+        </div>
+        <div class="card-body" id="step1-body"></div>
+    </div>
+</div>
+
+<!-- step2 企业归属 -->
+<div class="pane" id="step2">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>企业归属</strong>
+            <span class="text-muted small ms-2">仅作用于当前 format 命中的数据；多劳务公司混在同一份文件时启用</span>
+        </div>
+        <div class="card-body" id="step2-body"></div>
+    </div>
+</div>
+
+<!-- step3 项目归属 -->
+<div class="pane" id="step3">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>项目归属</strong>
+            <span class="text-muted small ms-2">仅作用于当前 format 命中的数据；单文件含多项目时启用</span>
+        </div>
+        <div class="card-body" id="step3-body"></div>
+    </div>
+</div>
+
+<!-- step4 列映射 -->
+<div class="pane" id="step4">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>列映射</strong>
+            <span class="text-muted small ms-2">本 format 的列 → mart 字段映射</span>
+        </div>
+        <div class="card-body" id="step4-body"></div>
+    </div>
+</div>
+
+<!-- step5 数据过滤 -->
+<div class="pane" id="step5">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>数据过滤</strong>
+            <span class="text-muted small ms-2">仅作用于当前 format 命中的数据；命中规则的行 → is_valid=0，即视为无效数据</span>
+        </div>
+        <div class="card-body" id="step5-body"></div>
+    </div>
+</div>
+
+<!-- step6 单价/pivot（仅 attendance 有意义） -->
+<div class="pane" id="step6">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong id="step6-title">单价配置</strong>
+            <span class="text-muted small ms-2" id="step6-desc"></span>
+        </div>
+        <div class="card-body" id="step6-body"></div>
+    </div>
+</div>
+
+<!-- 保存 -->
+<div class="text-end mb-4">
+    <button class="btn btn-primary" onclick="alert('mock 阶段，不实际保存')">保存当前 format 规则</button>
+</div>
+
+<script>
+const KIND = "{{ kind }}";
+const PID = "{{ project_id }}";
+
+// ============ Mock 数据：每个 kind 下若干 format ============
+const MOCK = {
+    attendance: [
+        { id: 1, name: '计时考勤（白班/夜班）', is_default: true,
+          step1: { match_columns: ['序号', '日期', '班次', '姓名', '工时'], handler: 'standard' },
+          step2: [ { filter_column:'所属服务商', mode:'include', filter_value:'梦寺达', enabled:true, note:'仅本企业' } ],
+          step3: [],
+          step4: { shift_date:'日期', name_raw:'姓名', hours:'工时', shift_name:'班次', worker_type:'岗位', floor_or_group:'部门' },
+          step5: [ { feature_columns:[], filter_column:'班次', mode:'exclude', filter_value:'押金,实习', enabled:true } ],
+          step6_unit_prices: [
+              { area:'', worker_type:'装卸工', shift_name:'白班', price:22, unit:'元/小时' },
+              { area:'', worker_type:'装卸工', shift_name:'夜班', price:26, unit:'元/小时' },
+              { area:'', worker_type:'分拣员', shift_name:'',     price:24, unit:'元/小时' },
+          ],
+          step6_pivot: null,
+        },
+        { id: 2, name: '计件考勤（焊接/打包）', is_default: false,
+          step1: { match_columns: ['日期', '姓名', '件数', '工种'], handler: 'standard' },
+          step2: [],
+          step3: [],
+          step4: { shift_date:'日期', name_raw:'姓名', quantity:'件数', worker_type:'工种' },
+          step5: [ { feature_columns:[], filter_column:'件数', mode:'gt', filter_value:'0', enabled:true, note:'件数>0 才算' } ],
+          step6_unit_prices: [
+              { area:'', worker_type:'焊工',  shift_name:'', price:1.8, unit:'元/件' },
+              { area:'', worker_type:'打包工',shift_name:'', price:0.6, unit:'元/件' },
+          ],
+        },
+        { id: 3, name: '横向月度考勤（多日期列）', is_default: false,
+          step1: { match_columns: ['姓名', '工种'], handler: 'pivot_attendance' },
+          step2: [],
+          step3: [],
+          step4: { name_raw:'姓名', worker_type:'工种' },
+          step5: [],
+          step6_pivot: { date_row_header_pattern: '考勤明细', match_row_pattern: '工时', field_row_offset: -1 },
+          step6_unit_prices: [],
+        },
+    ],
+    bill: [
+        { id: 10, name: '部门小计账单', is_default: true,
+          step1: { match_columns: ['部门', '工时', '金额'], handler: 'standard' },
+          step2: [],
+          step3: [],
+          step4: { floor_or_group:'部门', hours:'工时', amount:'金额', business_month:'账单月份' },
+          step5: [ { feature_columns:[], filter_column:'部门', mode:'exclude', filter_value:'合计', enabled:true } ],
+        },
+        { id: 11, name: '按人账单（含姓名+金额）', is_default: false,
+          step1: { match_columns: ['姓名', '工资合计', '所属部门'], handler: 'standard' },
+          step2: [],
+          step3: [],
+          step4: { name_raw:'姓名', amount:'工资合计', floor_or_group:'所属部门' },
+          step5: [],
+        },
+    ],
+    wage_sheet: [
+        { id: 20, name: '标准工资表（应发实发）', is_default: true,
+          step1: { match_columns: ['姓名', '应发工资', '实发工资'], handler: 'standard' },
+          step2: [],
+          step3: [],
+          step4: { name_raw:'姓名', gross_amount:'应发工资', net_amount:'实发工资', business_month:'工资月份' },
+          step5: [ { feature_columns:[], filter_column:'实发工资', mode:'gt', filter_value:'0', enabled:true } ],
+        },
+    ],
+    payroll: [
+        { id: 30, name: '银行回单流水', is_default: true,
+          step1: { match_columns: ['交易日期', '收款人', '金额'], handler: 'standard' },
+          step2: [],
+          step3: [],
+          step4: { pay_time:'交易日期', name_raw:'收款人', amount:'金额' },
+          step5: [],
+        },
+        { id: 31, name: '支付宝批量代发', is_default: false,
+          step1: { match_columns: ['批次号', '收款人姓名', '收款人账号', '转账金额'], handler: 'standard' },
+          step2: [],
+          step3: [],
+          step4: { pay_time:'付款时间', name_raw:'收款人姓名', amount:'转账金额' },
+          step5: [],
+        },
+    ],
+};
+
+let formats = MOCK[KIND] || [];
+let activeFmtIdx = 0;
+
+function escapeHtml(s) {
+    return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ============ format 切换 ============
+function renderFormatChips() {
+    const wrap = document.getElementById('format-chips');
+    if (!formats.length) {
+        wrap.innerHTML = '<span class="text-muted small">尚无 format，点击右侧"+ 新建 format"</span>';
+        return;
+    }
+    wrap.innerHTML = formats.map((f, i) => `
+        <div class="format-chip ${i===activeFmtIdx?'active':''}" onclick="selectFormat(${i})">
+            <span>${escapeHtml(f.name)}</span>
+            ${f.is_default ? '<span class="badge-cnt">默认</span>' : ''}
+        </div>
+    `).join('');
+}
+
+function selectFormat(idx) {
+    activeFmtIdx = idx;
+    renderFormatChips();
+    renderAll();
+}
+
+function newFormat() {
+    const name = prompt('新 format 名称（如：白班计时考勤 / 计件考勤 / 横向月度考勤）');
+    if (!name) return;
+    formats.push({ id: Date.now(), name, is_default: false,
+        step1: { match_columns: [], handler: 'standard' },
+        step2: [], step3: [], step4: {}, step5: [],
+        step6_unit_prices: [], step6_pivot: null });
+    activeFmtIdx = formats.length - 1;
+    renderFormatChips();
+    renderAll();
+}
+
+function renameFormat() {
+    const f = formats[activeFmtIdx]; if (!f) return;
+    const name = prompt('重命名', f.name);
+    if (name) { f.name = name; renderFormatChips(); }
+}
+
+function deleteFormat() {
+    const f = formats[activeFmtIdx]; if (!f) return;
+    if (!confirm(`删除 format「${f.name}」及其全套配置？`)) return;
+    formats.splice(activeFmtIdx, 1);
+    activeFmtIdx = Math.max(0, activeFmtIdx - 1);
+    renderFormatChips();
+    renderAll();
+}
+
+// ============ step nav ============
+document.querySelectorAll('#step-nav button').forEach(b => {
+    b.addEventListener('click', () => {
+        document.querySelectorAll('#step-nav button').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+        document.getElementById(b.dataset.pane).classList.add('active');
+    });
+});
+
+// 非 attendance 维度隐藏 step6
+if (KIND !== 'attendance') {
+    document.getElementById('step6-btn').style.display = 'none';
+}
+
+// ============ 渲染各 step ============
+function fmt() { return formats[activeFmtIdx]; }
+
+function renderStep1() {
+    const f = fmt(); if (!f) return;
+    const mc = (f.step1.match_columns || []).map(s=>s.replace(/ /g, '!!!')).join(' ');
+    document.getElementById('step1-body').innerHTML = `
+        <div class="rule-row">
+            <span class="lbl">特征列</span>
+            <input type="text" class="form-control form-control-sm grow" value="${escapeHtml(mc)}" placeholder="表头必含的列名，空格分隔">
+            <span class="lbl">handler</span>
+            <select class="form-select form-select-sm" style="width:180px;">
+                <option ${f.step1.handler==='standard'?'selected':''}>standard</option>
+                <option ${f.step1.handler==='pivot_attendance'?'selected':''}>pivot_attendance</option>
+                <option ${f.step1.handler==='two_region_attendance'?'selected':''}>two_region_attendance</option>
+                <option ${f.step1.handler==='enterprise_filter'?'selected':''}>enterprise_filter</option>
+            </select>
+        </div>
+        <div class="rule-row">
+            <span class="lbl">扫描行</span>
+            <input type="number" class="form-control form-control-sm" style="width:80px;" value="10" min="1" max="50">
+            <span class="text-muted small">表头识别在前 N 行内扫</span>
+        </div>`;
+}
+
+function renderStep2() {
+    const f = fmt(); if (!f) return;
+    const rules = f.step2.length ? f.step2 : [{filter_column:'', mode:'include', filter_value:'', enabled:false}];
+    document.getElementById('step2-body').innerHTML = rules.map((r,i) => `
+        <div class="rule-row">
+            <input type="checkbox" class="form-check-input" ${r.enabled?'checked':''}>
+            <span class="lbl">特征列</span>
+            <input type="text" class="form-control form-control-sm" style="width:160px;" value="${escapeHtml(r.filter_column||'')}" placeholder="如 所属服务商">
+            <select class="form-select form-select-sm" style="width:80px;">
+                <option ${r.mode==='include'?'selected':''}>包含</option>
+                <option ${r.mode==='exclude'?'selected':''}>排除</option>
+            </select>
+            <span class="lbl">关键词</span>
+            <input type="text" class="form-control form-control-sm grow" value="${escapeHtml(r.filter_value||'')}">
+            <input type="text" class="form-control form-control-sm" style="width:160px;" value="${escapeHtml(r.note||'')}" placeholder="备注">
+        </div>
+    `).join('') + `<div class="mt-2"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>`;
+}
+
+function renderStep3() {
+    const f = fmt(); if (!f) return;
+    document.getElementById('step3-body').innerHTML = `
+        <div class="mb-3">
+            <div class="text-muted small mb-1">1. Sheet 名规则 · sheet 名含关键词 → 整页归本项目</div>
+            <div class="rule-row">
+                <input type="checkbox" class="form-check-input">
+                <span class="lbl">关键词</span>
+                <input type="text" class="form-control form-control-sm grow" placeholder="如 海洋, 海洋世界">
+            </div>
+            <div class="mt-1"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+        </div>
+        <div>
+            <div class="text-muted small mb-1">2. 行级规则 · 某列含关键词 → 该行归本项目</div>
+            <div class="rule-row">
+                <input type="checkbox" class="form-check-input">
+                <span class="lbl">列名</span>
+                <input type="text" class="form-control form-control-sm" style="width:150px;" placeholder="如 项目">
+                <span class="lbl">关键词</span>
+                <input type="text" class="form-control form-control-sm grow">
+            </div>
+            <div class="mt-1"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+        </div>`;
+}
+
+// 列映射字段定义（按 kind 区分）
+const CM_FIELDS = {
+    attendance: [
+        {key:'shift_date', cn:'日期', req:true},
+        {key:'name_raw',   cn:'姓名', req:true},
+        {key:'hours',      cn:'工时', hint:'⚪ hours / quantity 二选一'},
+        {key:'quantity',   cn:'件数', hint:'计件 format 用'},
+        {key:'worker_type',cn:'岗位'},
+        {key:'floor_or_group', cn:'部门'},
+        {key:'worker_class',cn:'类型'},
+        {key:'shift_name', cn:'班次'},
+        {key:'id_card_raw',cn:'身份证'},
+        {key:'mobile',     cn:'手机号'},
+        {key:'extra_data', cn:'备注', hint:'多列名空格分隔（兼容逗号）'},
+    ],
+    bill: [
+        {key:'business_month', cn:'账单月份', req:true},
+        {key:'name_raw',       cn:'姓名 (按人账单必填)'},
+        {key:'floor_or_group', cn:'部门'},
+        {key:'amount',         cn:'金额', req:true},
+        {key:'hours',          cn:'工时'},
+    ],
+    wage_sheet: [
+        {key:'business_month', cn:'工资月份', req:true},
+        {key:'name_raw',       cn:'姓名', req:true},
+        {key:'gross_amount',   cn:'应发工资'},
+        {key:'net_amount',     cn:'实发工资', req:true},
+        {key:'id_card_raw',    cn:'身份证'},
+    ],
+    payroll: [
+        {key:'pay_time',  cn:'付款时间', req:true},
+        {key:'name_raw',  cn:'收款人',   req:true},
+        {key:'amount',    cn:'金额',     req:true},
+        {key:'account',   cn:'收款账号'},
+        {key:'remark',    cn:'备注'},
+    ],
+};
+
+function renderStep4() {
+    const f = fmt(); if (!f) return;
+    const cm = f.step4 || {};
+    const fields = CM_FIELDS[KIND] || [];
+    const rows = fields.map(fld => `
+        <tr>
+            <td><strong>${fld.cn}</strong> <code class="text-muted small">${fld.key}</code>
+                ${fld.req ? '<span class="text-danger small">*</span>' : ''}</td>
+            <td class="text-center text-muted">←</td>
+            <td><input type="text" class="form-control form-control-sm" value="${escapeHtml(cm[fld.key]||'')}"></td>
+            <td class="small text-muted">${fld.hint||(fld.req?'必填':'')}</td>
+        </tr>`).join('');
+    document.getElementById('step4-body').innerHTML = `
+        <table class="table table-sm mb-0" style="font-size:13px;">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:200px;">mart 字段</th>
+                    <th style="width:30px; text-align:center;">←</th>
+                    <th>文件列名（空=不映射）</th>
+                    <th style="width:30%;">说明</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>`;
+}
+
+function renderStep5() {
+    const f = fmt(); if (!f) return;
+    const rules = f.step5.length ? f.step5 : [{feature_columns:[], filter_column:'', mode:'exclude', filter_value:'', enabled:false}];
+    const MODE_LABELS = {include:'包含', exclude:'排除', gt:'大于', lt:'小于', eq:'等于', not_empty:'非空', empty:'为空'};
+    document.getElementById('step5-body').innerHTML = rules.map(r => `
+        <div class="rule-row">
+            <input type="checkbox" class="form-check-input" ${r.enabled?'checked':''}>
+            <span class="lbl">特征列</span>
+            <input type="text" class="form-control form-control-sm" style="width:160px;" value="${escapeHtml((r.feature_columns||[]).join(', '))}" placeholder="空=所有 sheet">
+            <span class="lbl">过滤列</span>
+            <input type="text" class="form-control form-control-sm" style="width:120px;" value="${escapeHtml(r.filter_column||'')}">
+            <select class="form-select form-select-sm" style="width:80px;">
+                ${Object.entries(MODE_LABELS).map(([k,v]) => `<option ${r.mode===k?'selected':''}>${v}</option>`).join('')}
+            </select>
+            <input type="text" class="form-control form-control-sm grow" value="${escapeHtml(r.filter_value||'')}">
+            <input type="text" class="form-control form-control-sm" style="width:160px;" value="${escapeHtml(r.note||'')}" placeholder="备注">
+        </div>
+    `).join('') + `<div class="mt-2"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>`;
+}
+
+function renderStep6() {
+    const f = fmt(); if (!f) return;
+    if (KIND !== 'attendance') {
+        document.getElementById('step6-body').innerHTML = '<div class="empty-stub">本维度无 step6</div>';
+        return;
+    }
+    const isPivot = f.step1.handler === 'pivot_attendance';
+    if (isPivot) {
+        document.getElementById('step6-title').textContent = 'pivot 模板';
+        document.getElementById('step6-desc').textContent = '横向考勤的日期列扫描参数';
+        const pv = f.step6_pivot || {};
+        document.getElementById('step6-body').innerHTML = `
+            <div class="row g-2">
+                <div class="col-md-4">
+                    <label class="form-label small mb-1">日期表头识别 pattern</label>
+                    <input type="text" class="form-control form-control-sm" value="${escapeHtml(pv.date_row_header_pattern||'')}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small mb-1">行匹配 pattern</label>
+                    <input type="text" class="form-control form-control-sm" value="${escapeHtml(pv.match_row_pattern||'')}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small mb-1">字段行偏移</label>
+                    <input type="number" class="form-control form-control-sm" value="${pv.field_row_offset||-1}">
+                </div>
+            </div>
+            <div class="text-muted small mt-2">仅对当前 format 生效；同项目其他 format（如计件）不会用这套 pivot 参数</div>`;
+    } else {
+        document.getElementById('step6-title').textContent = '单价配置';
+        document.getElementById('step6-desc').textContent = '仅作用于本 format 命中的考勤数据';
+        const ups = f.step6_unit_prices || [];
+        document.getElementById('step6-body').innerHTML = `
+            <table class="table table-sm mb-0" style="font-size:13px;">
+                <thead class="table-light">
+                    <tr><th>场地</th><th>工种</th><th>班次</th><th>单价</th><th>单位</th><th></th></tr>
+                </thead>
+                <tbody>
+                    ${ups.length ? ups.map(p => `
+                        <tr>
+                            <td><input type="text" class="form-control form-control-sm" value="${escapeHtml(p.area||'')}"></td>
+                            <td><input type="text" class="form-control form-control-sm" value="${escapeHtml(p.worker_type||'')}"></td>
+                            <td><input type="text" class="form-control form-control-sm" value="${escapeHtml(p.shift_name||'')}"></td>
+                            <td><input type="number" step="0.01" class="form-control form-control-sm" value="${p.price||''}"></td>
+                            <td>
+                                <select class="form-select form-select-sm">
+                                    ${['元/小时','元/天','元/件','元/单'].map(u =>
+                                        `<option ${p.unit===u?'selected':''}>${u}</option>`).join('')}
+                                </select>
+                            </td>
+                            <td class="text-center"><button class="btn btn-sm btn-link text-danger">×</button></td>
+                        </tr>`).join('') : '<tr><td colspan="6" class="text-muted small text-center">无单价规则</td></tr>'}
+                </tbody>
+            </table>
+            <div class="mt-2"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 增加单价</button></div>`;
+    }
+}
+
+function renderAll() {
+    const f = fmt();
+    if (!f) {
+        ['step1','step2','step3','step4','step5','step6'].forEach(id =>
+            document.getElementById(id+'-body').innerHTML = '<div class="empty-stub">尚无 format，请先新建</div>');
+        return;
+    }
+    document.getElementById('format-desc').innerHTML = `当前 format：<strong>${escapeHtml(f.name)}</strong>（id=${f.id}） handler=<code>${f.step1.handler}</code>`;
+    renderStep1();
+    renderStep2();
+    renderStep3();
+    renderStep4();
+    renderStep5();
+    renderStep6();
+}
+
+renderFormatChips();
+renderAll();
+</script>
+{% endblock %}

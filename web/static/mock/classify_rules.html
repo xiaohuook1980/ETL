@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Mock · 数据识别（考勤）</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+    body { background-color: #f8f9fa; }
+    .rule-card { box-shadow:none; border:1px solid #e9ecef; }
+    .mock-banner { background:#fff3cd; color:#664d03; padding:6px 12px; font-size:12px; text-align:center; border-bottom:1px solid #ffe69c; }
+    .empty-stub { color:#999; font-size:13px; padding:8px 12px; background:#fafafa; border-radius:4px; border:1px dashed #ddd; }
+    .rule-row { display:flex; gap:8px; align-items:center; padding:6px 0; border-bottom:1px dashed #eee; font-size:13px; }
+    .rule-row:last-child { border-bottom:0; }
+    .rule-row .lbl { color:#666; font-size:12px; min-width:50px; flex-shrink:0; }
+    .rule-row .grow { flex-grow:1; }
+    .step-nav { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+    .step-nav button { border:1px solid #dde2ea; background:#fff; padding:6px 14px; border-radius:4px; cursor:pointer; font-size:14px; }
+    .step-nav button.active { background:#4a6cf7; color:#fff; border-color:#4a6cf7; }
+    .pane { display:none; }
+    .pane.active { display:block; }
+</style>
+</head>
+<body>
+
+<div class="mock-banner">⚠️ 设计 mock（已弃用）— 真页面入口：项目设置 → 顶部 nav <strong>"数据识别配置 →"</strong>，或直接 <code>/projects/&lt;pid&gt;/classify/attendance</code></div>
+
+<nav class="navbar navbar-dark bg-dark">
+    <div class="container"><a class="navbar-brand" href="#">小鱼风控系统</a></div>
+</nav>
+
+<div class="container mt-4">
+
+    <!-- 顶部：返回 + 标题 -->
+    <div class="d-flex align-items-center mb-3 mt-3">
+        <a href="project_settings.html" class="btn btn-outline-secondary btn-sm">&larr; 返回项目设置</a>
+        <h5 class="mb-0 ms-3">
+            数据识别 · <span class="text-primary">海洋王国</span>
+            <span class="text-muted small ms-2">梦寺达 / 线上 ID 2003404877239738370</span>
+        </h5>
+        <button class="btn btn-outline-primary btn-sm ms-auto">从其他项目复制规则</button>
+    </div>
+
+    <!-- 4 类切换 -->
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item"><a class="nav-link active" href="classify_rules.html">考勤 attendance</a></li>
+        <li class="nav-item"><a class="nav-link" href="classify_rules_bill.html">账单 bill</a></li>
+        <li class="nav-item"><a class="nav-link" href="classify_rules_wage_sheet.html">工资表 wage_sheet</a></li>
+        <li class="nav-item"><a class="nav-link" href="classify_rules_payroll.html">发薪流水 payroll</a></li>
+    </ul>
+
+    <!-- 5 步骤入口 -->
+    <div class="step-nav" id="step-nav">
+        <button class="active" data-pane="step1">文件类型归属</button>
+        <button data-pane="step2">企业归属</button>
+        <button data-pane="step3">项目归属</button>
+        <button data-pane="step4">列映射</button>
+        <button data-pane="step5">数据过滤</button>
+    </div>
+
+    <!-- 文件类型归属 -->
+    <div class="pane active" id="step1">
+        <div class="card mb-3 rule-card">
+            <div class="card-header"><strong>文件类型归属</strong>
+                <span class="text-muted small ms-2">每条规则 = 特征列</span>
+            </div>
+            <div class="card-body">
+                <div class="rule-row">
+                    <input type="checkbox" class="form-check-input" checked>
+                    <span class="lbl">特征列</span>
+                    <input type="text" class="form-control form-control-sm" style="width:240px;" value="序号, 日期, 班次, 姓名, 工时">
+                <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                </div>
+                <div class="rule-row">
+                    <input type="checkbox" class="form-check-input" checked>
+                    <span class="lbl">特征列</span>
+                    <input type="text" class="form-control form-control-sm" style="width:240px;" value="澳思美长期工考勤, 总工时">
+                <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                </div>
+                <div class="rule-row">
+                    <input type="checkbox" class="form-check-input" checked>
+                    <span class="lbl">特征列</span>
+                    <input type="text" class="form-control form-control-sm" style="width:240px;" value="打卡日期, 姓名, 上班小时">
+                <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                </div>
+                <div class="mt-2"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 企业归属 -->
+    <div class="pane" id="step2">
+        <div class="card mb-3 rule-card">
+            <div class="card-header"><strong>企业归属</strong>
+                <span class="text-muted small ms-2">多劳务公司混在同一份考勤时启用</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="text-muted small mb-1">1. Sheet 名规则 · sheet 名含关键词 → 整页归本企业</div>
+                    <div class="rule-row">
+                        <input type="checkbox" class="form-check-input">
+                        <span class="lbl">关键词</span>
+                        <input type="text" class="form-control form-control-sm grow" placeholder="如 梦寺达, 长隆">
+                        <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                    </div>
+                    <div class="mt-1"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+                </div>
+                <div>
+                    <div class="text-muted small mb-1">2. 特征列规则 · 列名含关键词 → 该行归本企业</div>
+                    <div class="rule-row">
+                        <input type="checkbox" class="form-check-input">
+                        <span class="lbl">列名</span>
+                        <input type="text" class="form-control form-control-sm" style="width:150px;" placeholder="如 劳务公司">
+                        <span class="lbl">关键词</span>
+                        <input type="text" class="form-control form-control-sm grow" placeholder="如 梦寺达">
+                        <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                    </div>
+                    <div class="mt-1"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 三、项目归属 -->
+    <div class="pane" id="step3">
+        <div class="card mb-3 rule-card">
+            <div class="card-header"><strong>项目归属</strong>
+                <span class="text-muted small ms-2">单文件含多项目时启用（如长隆系列：海洋/企鹅/横琴）</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="text-muted small mb-1">1. Sheet 名规则 · sheet 名含关键词 → 整页归本项目</div>
+                    <div class="rule-row">
+                        <input type="checkbox" class="form-check-input">
+                        <span class="lbl">关键词</span>
+                        <input type="text" class="form-control form-control-sm grow" value="海洋, 海洋世界" placeholder="如 海洋, 海洋世界">
+                        <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                    </div>
+                    <div class="mt-1"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+                </div>
+                <div>
+                    <div class="text-muted small mb-1">2. 特征列规则 · 列名含关键词 → 该行归本项目</div>
+                    <div class="rule-row">
+                        <input type="checkbox" class="form-check-input">
+                        <span class="lbl">列名</span>
+                        <input type="text" class="form-control form-control-sm" style="width:150px;" placeholder="如 项目">
+                        <span class="lbl">关键词</span>
+                        <input type="text" class="form-control form-control-sm grow" placeholder="如 海洋, 海洋世界">
+                        <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                    </div>
+                    <div class="mt-1"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 列映射 -->
+    <div class="pane" id="step4">
+        <div class="card mb-3 rule-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div><strong>列映射</strong>
+                    <span class="text-muted small ms-2">文件列 → mart.attendance 字段（每条规则独立配置）</span>
+                </div>
+                <div>
+                    <span class="text-muted small">规则：</span>
+                    <select class="form-select form-select-sm d-inline-block" style="width:380px;">
+                        <option>规则 1：序号, 日期, 班次, 姓名, 工时（澳思美简洁日级，handler=standard）</option>
+                        <option>规则 2：序号, 日期, 班次, 姓名, 工时（双区域 12 列，handler=aosimei_dual_region）</option>
+                        <option>规则 3：澳思美长期工考勤, 总工时（横向 pivot, handler=aosimei_long_term_pivot）</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body">
+
+                <!-- 固定字段列表，每个 mart 字段一行；用户填对应文件列名（空=不映射） -->
+                <table class="table table-sm mb-0" style="font-size:13px;">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:200px;">mart 字段</th>
+                            <th style="width:30px; text-align:center;">←</th>
+                            <th>文件列名（支持 * 通配；空=不映射）</th>
+                            <th style="width:30%;">说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>日期</strong> <code class="text-muted small">shift_date</code> <span class="text-danger small">*</span></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" value="日期"></td>
+                            <td class="small text-muted">必填</td>
+                        </tr>
+                        <tr>
+                            <td><strong>姓名</strong> <code class="text-muted small">name_raw</code> <span class="text-danger small">*</span></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" value="姓名"></td>
+                            <td class="small text-muted">必填</td>
+                        </tr>
+                        <tr>
+                            <td><strong>工时</strong> <code class="text-muted small">hours</code> <span class="text-warning small">⚪</span></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" value="工时"></td>
+                            <td class="small text-muted">⚪ hours / quantity 二选一</td>
+                        </tr>
+                        <tr>
+                            <td><strong>件数</strong> <code class="text-muted small">quantity</code> <span class="text-warning small">⚪</span></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" placeholder=""></td>
+                            <td class="small text-muted">计件项目用</td>
+                        </tr>
+                        <tr>
+                            <td><strong>岗位</strong> <code class="text-muted small">worker_type</code></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" placeholder=""></td>
+                            <td class="small text-muted">如 装卸工/分拣员/司机</td>
+                        </tr>
+                        <tr>
+                            <td><strong>部门</strong> <code class="text-muted small">floor_or_group</code></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" placeholder=""></td>
+                            <td class="small text-muted">如 A区仓/餐务部</td>
+                        </tr>
+                        <tr>
+                            <td><strong>类型</strong> <code class="text-muted small">worker_class</code></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" placeholder=""></td>
+                            <td class="small text-muted">临时工 / 长期工</td>
+                        </tr>
+                        <tr>
+                            <td><strong>班次</strong> <code class="text-muted small">shift_name</code></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" value="班次"></td>
+                            <td class="small text-muted">白班 / 夜班 / ...</td>
+                        </tr>
+                        <tr>
+                            <td><strong>身份证</strong> <code class="text-muted small">id_card_raw</code></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" placeholder=""></td>
+                            <td class="small text-muted">进 attendance 行（冗余）</td>
+                        </tr>
+                        <tr>
+                            <td><strong>手机号</strong> <code class="text-muted small">mobile</code></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" placeholder=""></td>
+                            <td class="small text-muted">进 workers 表，用作工人匹配</td>
+                        </tr>
+                        <tr>
+                            <td><strong>备注</strong> <code class="text-muted small">extra_data</code></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" value="序号, 备注" placeholder="多列名逗号分隔，如 序号, 银行卡号"></td>
+                            <td class="small text-muted">多列；全装 JSON（key=列名 value=单元格值）</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="alert alert-light border mt-3 mb-0 small">
+                    <strong>必填</strong>：<code>日期</code> + <code>姓名</code> + (<code>工时</code> 或 <code>件数</code>)。<br>
+                    <strong>specialized handler 的规则</strong>（双区域 / 长期工 pivot 等）：列映射由代码层处理，本表不生效。
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据过滤 -->
+    <div class="pane" id="step5">
+        <div class="card mb-3 rule-card">
+            <div class="card-header"><strong>数据过滤</strong>
+                <span class="text-muted small ms-2">每条规则 = 特征列；命中规则的行丢弃或保留</span>
+            </div>
+            <div class="card-body">
+                <div class="rule-row">
+                    <input type="checkbox" class="form-check-input" checked disabled>
+                    <input type="checkbox" class="form-check-input">
+                    <span class="lbl">特征列</span>
+                    <input type="text" class="form-control form-control-sm" style="width:200px;" placeholder="不勾=所有 sheet">
+                    <input type="checkbox" class="form-check-input" checked>
+                    <span class="lbl">过滤列</span>
+                    <input type="text" class="form-control form-control-sm" style="width:120px;" value="姓名">
+                    <select class="form-select form-select-sm" style="width:80px;">
+                        <option>包含</option>
+                        <option selected>排除</option>
+                        <option>大于</option>
+                        <option>小于</option>
+                        <option>等于</option>
+                    </select>
+                    <input type="text" class="form-control form-control-sm grow" value="合计, 小计, 总计, 汇总, 累计">
+                    <span class="badge bg-secondary">内置</span>
+                </div>
+                <div class="rule-row">
+                    <input type="checkbox" class="form-check-input" checked>
+                    <input type="checkbox" class="form-check-input">
+                    <span class="lbl">特征列</span>
+                    <input type="text" class="form-control form-control-sm" style="width:200px;" placeholder="不勾=所有 sheet">
+                    <input type="checkbox" class="form-check-input" checked>
+                    <span class="lbl">过滤列</span>
+                    <input type="text" class="form-control form-control-sm" style="width:120px;" value="工时">
+                    <select class="form-select form-select-sm" style="width:80px;">
+                        <option>包含</option>
+                        <option>排除</option>
+                        <option selected>大于</option>
+                        <option>小于</option>
+                        <option>等于</option>
+                    </select>
+                    <input type="text" class="form-control form-control-sm grow" value="0">
+                    <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                </div>
+                <div class="rule-row">
+                    <input type="checkbox" class="form-check-input">
+                    <input type="checkbox" class="form-check-input">
+                    <span class="lbl">特征列</span>
+                    <input type="text" class="form-control form-control-sm" style="width:200px;" placeholder="不勾=所有 sheet">
+                    <input type="checkbox" class="form-check-input" checked>
+                    <span class="lbl">过滤列</span>
+                    <input type="text" class="form-control form-control-sm" style="width:120px;" value="工人类型">
+                    <select class="form-select form-select-sm" style="width:80px;">
+                        <option>包含</option>
+                        <option selected>排除</option>
+                        <option>大于</option>
+                        <option>小于</option>
+                        <option>等于</option>
+                    </select>
+                    <input type="text" class="form-control form-control-sm grow" placeholder="如 实习生, 替班">
+                    <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                </div>
+                <div class="mt-2"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+
+                <div class="alert alert-light border mt-3 mb-0 small">
+                    <strong>勾选语义</strong>：行首=整条规则启用；特征列前=该字段是否参与匹配（不勾=对所有 sheet 生效，多数考勤场景）；过滤列前=该字段是否参与匹配。<br>
+                    <strong>模式</strong>：包含/排除（关键词字符串匹配）/ 大于/小于/等于（数值比较，关键词输数字）。<br>
+                    <strong>合计行剔除</strong>是内置规则（行首 checkbox 灰，关键词可扩展不可删）。
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 保存 -->
+    <div class="text-end mb-4">
+        <button class="btn btn-primary">保存考勤识别规则</button>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.querySelectorAll('#step-nav button').forEach(b => {
+    b.addEventListener('click', () => {
+        document.querySelectorAll('#step-nav button').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        const target = b.dataset.pane;
+        document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+        document.getElementById(target).classList.add('active');
+    });
+});
+</script>
+
+</body>
+</html>

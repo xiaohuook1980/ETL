@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}发起出款申请{% endblock %}
+
+{% block content %}
+<div class="row mt-3">
+    <!-- 左侧：选择区 -->
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">出款申请</h5></div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">劳务公司</label>
+                    <select id="sel-company" class="form-select">
+                        <option value="">请选择...</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label d-flex align-items-center justify-content-between">
+                        <span>项目</span>
+                        <span class="d-flex gap-1">
+                            <a id="link-unit-price" class="btn btn-sm btn-outline-secondary py-0 px-2 d-none"
+                               href="#" target="_blank">单价配置 →</a>
+                            <a id="link-classify-config" class="btn btn-sm btn-outline-secondary py-0 px-2 d-none"
+                               href="#" target="_blank">数据识别配置 →</a>
+                        </span>
+                    </label>
+                    <select id="sel-project" class="form-select" disabled>
+                        <option value="">请先选择公司</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">业务月份</label>
+                    <select id="sel-month" class="form-select">
+                        <option value="">加载中...</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">申请日期</label>
+                    <input type="date" id="input-date" class="form-control">
+                </div>
+                <div class="d-flex gap-2">
+                    <button id="btn-load-normal" class="btn btn-primary flex-fill" data-mode="normal" disabled>普通核对</button>
+                    <button id="btn-load-prepay" class="btn btn-warning flex-fill" data-mode="prepay" disabled>预付核对</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧：数据核对区 -->
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">数据核对 <span class="badge ms-2" id="mode-badge"></span></h5>
+                <span class="text-muted small" id="check-summary"></span>
+            </div>
+            <div class="card-body" id="check-area">
+                <p class="text-muted" id="check-placeholder">选择公司、项目、业务月份和申请日期后，点击"普通核对"或"预付核对"</p>
+
+                <div id="check-content" style="display:none;">
+                    <!-- 4 类数据卡片（按 mode 显示/隐藏） -->
+                    <div id="cards-area" class="row g-2 mb-3"></div>
+
+                    <!-- 参数区（普通+预付，按 mode 切显） -->
+                    <div class="border rounded p-3 mb-3 bg-light">
+                        <div class="row g-2">
+                            <div class="col-md-2">
+                                <label class="form-label small mb-1">出款比例</label>
+                                <input type="number" id="input-profit-ratio" class="form-control form-control-sm"
+                                       value="0.8" min="0" max="1" step="0.01">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small mb-1">代收阈值 (元)</label>
+                                <input type="number" id="input-daishou-threshold" class="form-control form-control-sm"
+                                       value="2000" min="0" step="100">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-1">计算公式</label>
+                                <select id="sel-calc-formula" class="form-select form-select-sm">
+                                    <!-- 由 app.js 按 mode 填充 -->
+                                </select>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label small mb-1">客户申请金额 (元)
+                                    <span class="text-muted small">不填 = 顶格</span>
+                                </label>
+                                <input type="number" id="input-customer-amount" class="form-control form-control-sm"
+                                       placeholder="不填取算法值；填了取 min(算法, 申请)">
+                            </div>
+                            <!-- 以下仅预付模式显示 -->
+                            <div class="col-md-5 prepay-only d-none">
+                                <label class="form-label small mb-1">基准日</label>
+                                <select id="sel-baseday-mode" class="form-select form-select-sm">
+                                    <option value="max" selected>近 7 日最高</option>
+                                    <option value="latest">最近一天（昨日）</option>
+                                    <option value="avg">近 7 日平均</option>
+                                    <option value="custom">指定日期</option>
+                                </select>
+                                <input type="date" id="input-baseday-date" class="form-control form-control-sm mt-1 d-none">
+                            </div>
+                            <div class="col-md-3 prepay-only d-none">
+                                <label class="form-label small mb-1">预付天数</label>
+                                <input type="number" id="input-prepay-days" class="form-control form-control-sm" value="8" min="1" max="30">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 预付估算预览（仅预付模式显示） -->
+                    <div id="prepay-preview" class="alert alert-warning small p-2 mb-3 d-none"></div>
+
+                    <!-- 拉取 / 删除业务周期数据 -->
+                    <div class="d-flex gap-2 mb-3">
+                        <button id="btn-fetch-core" class="btn btn-outline-primary flex-fill" data-scope="core">拉取数据</button>
+                        <button id="btn-delete-bm" class="btn btn-outline-danger" data-scope="core">删除数据</button>
+                    </div>
+
+                    <!-- 开始审核 -->
+                    <div class="text-end">
+                        <button id="btn-analyze" class="btn btn-success btn-lg px-4">开始审核</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 拉取结果可复制弹窗 -->
+<div class="modal fade" id="pull-result-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title">拉取结果</h6>
+                <div class="ms-auto d-flex gap-2 align-items-center">
+                    <button type="button" id="btn-copy-pull-result" class="btn btn-sm btn-outline-primary">📋 复制</button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0">
+                <pre id="pull-result-text" class="m-0 p-3" style="font-size:12px; white-space:pre-wrap; max-height:70vh; overflow:auto;"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}

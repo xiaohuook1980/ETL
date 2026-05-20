@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}format 管理 · {{ project_id }}{% endblock %}
+{% block content %}
+<style>
+    .rule-card { box-shadow:none; border:1px solid #e9ecef; }
+    .kind-section { margin-bottom:24px; }
+    .kind-section h6 { font-weight:600; padding:6px 10px; background:#f0f4ff; border-left:3px solid #4a6cf7; border-radius:4px; display:flex; align-items:center; }
+    .fmt-row { display:flex; gap:8px; align-items:center; padding:10px; border-bottom:1px solid #eee; }
+    .fmt-row:last-child { border-bottom:0; }
+    .fmt-row.is-disabled { background:#fafafa; opacity:0.6; }
+    .fmt-row.is-disabled .fmt-name,
+    .fmt-row.is-disabled .fmt-meta { text-decoration:line-through; }
+    .fmt-toggle { padding:0 4px; }
+    .fmt-toggle input { transform:scale(1.2); cursor:pointer; }
+    .fmt-name { font-weight:600; font-size:14px; }
+    .fmt-meta { color:#888; font-size:12px; }
+    .fmt-counts { font-size:11px; color:#666; }
+    .fmt-counts .pill { display:inline-block; padding:1px 6px; background:#e9ecef; border-radius:8px; margin-right:4px; }
+    .fmt-counts .pill.has { background:#cfe2ff; color:#0d6efd; }
+    .fmt-actions a { font-size:12px; }
+    .empty-stub { color:#888; font-size:13px; padding:20px; text-align:center; background:#fafafa; border-radius:4px; border:1px dashed #ddd; }
+</style>
+
+<div class="d-flex align-items-center mb-3 mt-3">
+    <a href="/projects" class="btn btn-outline-secondary btn-sm">&larr; 返回项目列表</a>
+    <h5 class="mb-0 ms-3">
+        format 管理 · <span class="text-primary">{{ project_id }}</span>
+    </h5>
+</div>
+
+<div id="content-wrap">
+    <div class="alert alert-info small p-2 mb-3">
+        <strong>什么是 format？</strong> 一个 format = 一种数据结构（如"白班计时考勤"/"计件考勤"/"横向月度考勤"）。同项目下不同结构的数据可独立配置全套规则（特征列/列映射/企业归属/项目归属/有效性/pivot）。<br>
+        每个维度（考/账/发/工）下可有 N 个 format。规则按 format 隔离，dispatcher 按 format_id 加载。
+    </div>
+
+    <div id="formats-container">
+        <div class="text-muted small">加载中…</div>
+    </div>
+</div>
+
+<!-- 新建/编辑 modal -->
+<div class="modal fade" id="fmt-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title" id="modal-title">新建 format</h6>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="m-format-id">
+                <input type="hidden" id="m-target-kind">
+                <div class="mb-3">
+                    <span class="text-muted small">维度：</span>
+                    <span id="m-target-kind-label" class="badge bg-light text-dark border" style="font-size:13px; padding:5px 10px;"></span>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">名称 <span class="text-danger">*</span></label>
+                    <input type="text" id="m-name" class="form-control form-control-sm"
+                           placeholder="如：白班计时考勤 / 计件考勤 / 横向月度考勤">
+                </div>
+                <div class="mb-3" id="m-handler-wrap">
+                    <label class="form-label">handler</label>
+                    <select id="m-handler" class="form-select form-select-sm">
+                        <option value="standard">standard（纵向表，常用）</option>
+                        <option value="pivot_attendance">pivot_attendance（横向考勤）</option>
+                        <option value="aggregate_label">aggregate_label（聚合标签账单，仅 bill）</option>
+                    </select>
+                    <div class="text-muted small mt-1">handler 决定本 format 的解析路径；纵向数据一般选 standard（双区域横向也选 standard，match_columns 重复列时系统自动升级）；账单不按人累加而按"标签×列名"取值 → aggregate_label</div>
+                </div>
+                <div class="mb-3 d-none" id="m-xiaoyu-wrap">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="m-xiaoyu-payroll">
+                        <label class="form-check-label" for="m-xiaoyu-payroll">
+                            <strong>小鱼发薪</strong>
+                            <span class="text-muted small">— 来源是小鱼系统的发薪数据，DB→mart 直映（无需配置特征列/列映射/有效性）</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <input type="text" id="m-note" class="form-control form-control-sm">
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button class="btn btn-sm btn-primary" onclick="saveFormat()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const PID = "{{ project_id }}";
+const KIND_LABELS = {attendance:'考勤 attendance', bill:'账单 bill',
+                     wage_sheet:'工资表 wage_sheet', payroll:'发薪流水 payroll'};
+const KIND_SHORT = {attendance:'考勤', bill:'账单',
+                    wage_sheet:'工资表', payroll:'发薪流水'};
+let projShortName = '';  // 项目短名，新建 format 时拼默认名用
+
+function escapeHtml(s) {
+    return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadFormats() {
+    const r = await fetch(`/api/projects/${PID}/formats/summary`);
+    const data = await r.json();
+    renderFormats(data);
+}
+
+function renderFormats(data) {
+    const wrap = document.getElementById('formats-container');
+    let html = '';
+    for (const kind of ['attendance','bill','wage_sheet','payroll']) {
+        const list = data[kind] || [];
+        html += `
+        <div class="kind-section">
+            <h6>
+                <span>${escapeHtml(KIND_LABELS[kind])}</span>
+                <span class="ms-auto text-muted small fw-normal">${list.length} 个 format</span>
+                <button class="btn btn-sm btn-outline-primary py-0 px-2 ms-2" onclick="openModal(null, '${kind}')">+ 新建</button>
+            </h6>
+            <div class="card rule-card mb-0">
+                <div class="card-body p-0">`;
+        if (!list.length) {
+            html += `<div class="empty-stub">本维度尚无 format，点击"+ 新建"创建第一个</div>`;
+        } else {
+            list.forEach(f => {
+                const c = f.rule_counts || {};
+                const enabled = (f.enabled !== false);
+                html += `
+                <div class="fmt-row ${enabled ? '' : 'is-disabled'}">
+                    <div class="fmt-toggle" title="${enabled ? '启用中（取消勾选禁用）' : '已禁用（勾选启用）'}">
+                        <input type="checkbox" ${enabled ? 'checked' : ''}
+                               onchange='toggleEnabled(${JSON.stringify(f.id)}, this.checked)'>
+                    </div>
+                    <div style="flex-grow:1;">
+                        <div class="fmt-name">${escapeHtml(f.name)}
+                            ${f.is_xiaoyu_payroll ? '<span class="badge bg-info ms-2" style="font-size:11px;">小鱼发薪</span>' : ''}
+                            ${enabled ? '' : '<span class="badge bg-secondary ms-2" style="font-size:11px;">已禁用</span>'}
+                        </div>
+                        <div class="fmt-meta">
+                            id=${f.id} · handler=<code>${escapeHtml(f.handler)}</code>
+                            ${f.note ? ' · ' + escapeHtml(f.note) : ''}
+                        </div>
+                        <div class="fmt-counts mt-1">
+                            <span class="pill ${c.classify ? 'has' : ''}">特征列 ${c.classify || 0}</span>
+                            <span class="pill ${c.enterprise ? 'has' : ''}">企业归属 ${c.enterprise || 0}</span>
+                            <span class="pill ${c.attribution ? 'has' : ''}">项目归属 ${c.attribution || 0}</span>
+                            <span class="pill ${c.validity ? 'has' : ''}">有效性 ${c.validity || 0}</span>
+                            ${kind === 'attendance' ? `<span class="pill ${c.pivot ? 'has' : ''}">pivot ${c.pivot || 0}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="fmt-actions d-flex flex-column gap-1">
+                        <a class="btn btn-sm btn-outline-primary py-0 px-2"
+                           href="/projects/${PID}/classify/${kind}?format_id=${f.id}">配置规则 →</a>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                onclick='openModal(${JSON.stringify(f)}, "${kind}")'>✏️</button>
+                            <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                                onclick='deleteFormat(${JSON.stringify(f.id)}, ${JSON.stringify(f.name)})'>🗑</button>
+                        </div>
+                    </div>
+                </div>`;
+            });
+        }
+        html += `</div></div></div>`;
+    }
+    wrap.innerHTML = html;
+}
+
+function openModal(f, kind) {
+    const modal = new bootstrap.Modal(document.getElementById('fmt-modal'));
+    const k = f ? f.target_kind : kind;
+    document.getElementById('m-target-kind').value = k;
+    document.getElementById('m-target-kind-label').textContent = KIND_LABELS[k] || k;
+    // 仅 payroll kind 显示"小鱼发薪"选项
+    document.getElementById('m-xiaoyu-wrap').classList.toggle('d-none', k !== 'payroll');
+    if (f) {
+        document.getElementById('modal-title').textContent = '编辑 format';
+        document.getElementById('m-format-id').value = f.id;
+        document.getElementById('m-name').value = f.name;
+        document.getElementById('m-handler').value = f.handler;
+        document.getElementById('m-note').value = f.note || '';
+        document.getElementById('m-xiaoyu-payroll').checked = !!f.is_xiaoyu_payroll;
+    } else {
+        document.getElementById('modal-title').textContent = '新建 format';
+        document.getElementById('m-format-id').value = '';
+        // 默认名 = 项目短名 + 类型中文（如 "新华昌工资表"）
+        document.getElementById('m-name').value = projShortName
+            ? `${projShortName}${KIND_SHORT[k] || k}` : '';
+        document.getElementById('m-handler').value = 'standard';
+        document.getElementById('m-note').value = '';
+        document.getElementById('m-xiaoyu-payroll').checked = false;
+    }
+    syncXiaoyuLock();
+    modal.show();
+}
+
+// 勾选"小鱼发薪"时禁用 handler（只能 standard）
+function syncXiaoyuLock() {
+    const on = document.getElementById('m-xiaoyu-payroll').checked;
+    const sel = document.getElementById('m-handler');
+    if (on) {
+        sel.value = 'standard';
+        sel.disabled = true;
+    } else {
+        sel.disabled = false;
+    }
+}
+document.getElementById('m-xiaoyu-payroll').addEventListener('change', syncXiaoyuLock);
+
+async function saveFormat() {
+    const id = document.getElementById('m-format-id').value;
+    const data = {
+        target_kind: document.getElementById('m-target-kind').value,
+        name: document.getElementById('m-name').value.trim(),
+        handler: document.getElementById('m-handler').value,
+        note: document.getElementById('m-note').value.trim(),
+        is_xiaoyu_payroll: document.getElementById('m-xiaoyu-payroll').checked,
+    };
+    if (id) data.id = id;
+    if (!data.name) { alert('名称必填'); return; }
+    const r = await fetch(`/api/projects/${PID}/formats`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(data)
+    });
+    const res = await r.json();
+    if (res.error) { alert('保存失败：' + res.error); return; }
+    bootstrap.Modal.getInstance(document.getElementById('fmt-modal')).hide();
+    await loadFormats();
+}
+
+async function toggleEnabled(id, on) {
+    const r = await fetch(`/api/projects/${PID}/formats/${id}/toggle`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({enabled: on})
+    });
+    const res = await r.json();
+    if (res.error) { alert('切换失败：' + res.error); return; }
+    await loadFormats();
+}
+
+async function deleteFormat(id, name) {
+    if (!confirm(`删除 format「${name}」及其全套规则？\n（含挂在该 format 下的特征列/企业归属/项目归属/有效性/pivot 规则）`)) return;
+    const r = await fetch(`/api/projects/${PID}/formats/${id}`, {method:'DELETE'});
+    const res = await r.json();
+    if (res.deleted) await loadFormats();
+}
+
+async function loadProjMeta() {
+    try {
+        const r = await fetch(`/api/projects/${PID}/classify/overview`);
+        const d = await r.json();
+        if (d.meta) {
+            projShortName = d.meta.short_name || d.meta.title || '';
+        }
+    } catch (_) {}
+}
+
+loadFormats();
+loadProjMeta();
+</script>
+{% endblock %}

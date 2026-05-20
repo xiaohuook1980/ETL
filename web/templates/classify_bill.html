@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+{% block title %}数据识别 · 账单 · {{ project_id }}{% endblock %}
+{% block content %}
+<style>
+    .rule-card { box-shadow:none; border:1px solid #e9ecef; }
+    .empty-stub { color:#999; font-size:13px; padding:8px 12px; background:#fafafa; border-radius:4px; border:1px dashed #ddd; }
+    .rule-row { display:flex; gap:8px; align-items:center; padding:6px 0; border-bottom:1px dashed #eee; font-size:13px; }
+    .rule-row:last-child { border-bottom:0; }
+    .rule-row .lbl { color:#666; font-size:12px; min-width:50px; flex-shrink:0; }
+    .rule-row .grow { flex-grow:1; }
+    .step-nav { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+    .step-nav button { border:1px solid #dde2ea; background:#fff; padding:6px 14px; border-radius:4px; cursor:pointer; font-size:14px; }
+    .step-nav button.active { background:#4a6cf7; color:#fff; border-color:#4a6cf7; }
+    .pane { display:none; }
+    .pane.active { display:block; }
+</style>
+
+<div class="d-flex align-items-center mb-3 mt-3">
+    <a href="/projects/{{ project_id }}/formats" class="btn btn-outline-secondary btn-sm">&larr; format 管理</a>
+    <h5 class="mb-0 ms-3">
+        数据识别 · <span class="text-primary" id="proj-title">--</span>
+        <span class="text-muted small ms-2" id="proj-meta"></span>
+    </h5>
+    <div class="ms-auto d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" onclick="seedDefault()">应用默认模板</button>
+        <button class="btn btn-outline-primary btn-sm" disabled>从其他项目复制规则</button>
+    </div>
+</div>
+
+<!-- format 模式横幅 -->
+<div id="format-banner" class="d-none alert alert-primary py-2 small mb-3" style="background:linear-gradient(90deg,#4a6cf7 0%,#6f87ff 100%); color:#fff; border:none;">
+    <strong>📐 format 模式</strong>
+    当前 format: <strong id="format-banner-name">…</strong>
+    <span class="ms-2 opacity-75">本页规则仅对该 format 命中的数据生效</span>
+    <a href="/projects/{{ project_id }}/formats" class="float-end text-white" style="text-decoration:underline;">切换 format →</a>
+</div>
+
+
+<div class="step-nav" id="step-nav">
+    <button class="active" data-pane="step1">文件类型归属</button>
+    <button data-pane="step2">企业归属</button>
+    <button data-pane="step3">项目归属</button>
+    <button data-pane="step4">列映射</button>
+</div>
+
+<!-- 文件类型归属 -->
+<div class="pane active" id="step1">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>文件类型归属</strong>
+            <span class="text-muted small ms-2">
+                <strong>特征列</strong>（必含的列名 / 全部命中才算）+ <strong>排除列</strong>（任一出现就不算，可空）；<strong>空格分隔</strong>，列名本身含空格用 <code>!!!</code> 替代。<br>
+                <span class="text-warning">⚠️ 同项目同 format 下账单和工资表特征列可能重叠（如疆海新华昌"序号 工段 班组..."），需在账单规则的<strong>排除列</strong>里加工资表独有列（如 <code>实发</code> <code>银行卡号</code>）反之亦然。
+                </span>
+            </span>
+        </div>
+        <div class="card-body" id="step1-body">
+            <div class="text-muted small">加载中…</div>
+        </div>
+    </div>
+</div>
+
+<!-- 企业归属 -->
+<div class="pane" id="step2">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>企业归属</strong>
+            <span class="text-muted small ms-2">多劳务公司账单合并在同一份时启用</span>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <div class="text-muted small mb-1">1. Sheet 名规则 · sheet 名含关键词 → 整页归本企业</div>
+                <div class="rule-row">
+                    <input type="checkbox" class="form-check-input">
+                    <span class="lbl">关键词</span>
+                    <input type="text" class="form-control form-control-sm grow" placeholder="如 梦寺达, 长隆">
+                    <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                </div>
+                <div class="mt-1"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+            </div>
+            <div>
+                <div class="text-muted small mb-1">2. 特征列规则 · 列名含关键词 → 该行归本企业</div>
+                <div class="rule-row">
+                    <input type="checkbox" class="form-check-input">
+                    <span class="lbl">列名</span>
+                    <input type="text" class="form-control form-control-sm" style="width:150px;" placeholder="如 劳务公司, 供应商">
+                    <span class="lbl">关键词</span>
+                    <input type="text" class="form-control form-control-sm grow" placeholder="如 梦寺达">
+                    <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                </div>
+                <div class="mt-1"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 项目归属（接 attribution_panel.js） -->
+<div class="pane" id="step3">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>归属规则</strong>
+            <span class="text-muted small ms-2">企业过滤 + 项目过滤（多劳务公司 / 单文件多项目场景）</span>
+        </div>
+        <div class="card-body" id="step3-body">
+            <div class="text-muted small">加载中…</div>
+        </div>
+    </div>
+</div>
+
+<!-- 列映射 -->
+<div class="pane" id="step4">
+    <div class="card mb-3 rule-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div><strong>列映射</strong>
+                <span class="text-muted small ms-2">文件列 → mart.bill_persons 字段</span>
+            </div>
+            <div>
+                <span class="text-muted small">规则：</span>
+                <select id="cm-rule-select" class="form-select form-select-sm d-inline-block" style="width:380px;"></select>
+            </div>
+        </div>
+        <div class="card-body">
+            <table class="table table-sm mb-0" style="font-size:13px;">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:200px;">mart 字段</th>
+                        <th style="width:30px; text-align:center;">←</th>
+                        <th>文件列名（支持 * 通配；空=不映射）</th>
+                        <th style="width:30%;">说明</th>
+                    </tr>
+                </thead>
+                <tbody id="cm-tbody">
+                    <tr>
+                        <td><strong>姓名</strong> <code class="text-muted small">name_raw</code> <span class="text-danger small">*</span></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="name_raw"></td>
+                        <td class="small text-muted">必填，空姓名行 → 走 bill_totals</td>
+                    </tr>
+                    <tr>
+                        <td><strong>金额</strong> <code class="text-muted small">amount</code> <span class="text-danger small">*</span></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="amount"></td>
+                        <td class="small text-muted">
+                            必填。支持单列名（如 <code>实发工资</code>）或表达式：
+                            列名用双引号包，加减乘除 + 括号；
+                            如 <code>"总工资（元）" + "劳务费用等（元）"</code>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>身份证</strong> <code class="text-muted small">id_card_raw</code></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="id_card_raw"></td>
+                        <td class="small text-muted">可选，识别用作匹配 worker</td>
+                    </tr>
+                    <tr>
+                        <td><strong>备注</strong> <code class="text-muted small">extra_data</code></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="extra_data" placeholder="多列名空格分隔（兼容逗号）"></td>
+                        <td class="small text-muted">未映射列全装 JSON</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="alert alert-light border mt-3 mb-0 small">
+                <strong>必填</strong>：<code>姓名</code> + <code>金额</code>。
+            </div>
+
+            <!-- 聚合标签账单（mock，未接后端） -->
+            <div class="mt-4 pt-3" style="border-top:2px dashed #4a6cf7;">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong style="color:#4a6cf7;">⚙ 聚合标签账单</strong>
+                        <span class="text-muted small ms-2">账单总额不来自按人累加，而是文件里某个"标签词×列名"二维定位的数字</span>
+                    </div>
+                    <div>
+                        <label class="d-flex align-items-center gap-1" style="font-size:13px;cursor:pointer;">
+                            <input type="checkbox" id="aggregate-enabled" onchange="toggleAggMode()">
+                            启用聚合模式
+                        </label>
+                    </div>
+                </div>
+
+                <div id="aggregate-help" class="alert alert-info py-2 small mb-2">
+                    💡 启用后：calc 算账单总额会用下面配置的命中值，而非 mart_bills 按人累加。<br>
+                    每条规则两种填法二选一：① <strong>cell 引用</strong>（如 <code>N3</code>，直接取该单元格）；② <strong>标签词 + 列名</strong>（找含标签的行 × 含列名的列，取交点）。
+                </div>
+
+                <div id="aggregate-table-wrap" class="d-none">
+                <table class="table table-sm mb-2" style="font-size:13px;">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:24px;"></th>
+                            <th style="width:140px;">Sheet 名（子串）</th>
+                            <th style="width:90px;">Cell 引用<br><small class="text-muted fw-normal">如 N3</small></th>
+                            <th style="width:140px;">标签词（行定位）</th>
+                            <th style="width:140px;">列名（列定位）</th>
+                            <th>备注</th>
+                            <th style="width:40px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="agg-tbody"></tbody>
+                </table>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <button class="btn btn-sm btn-outline-primary py-1 px-2" onclick="addAggRow()">+ 添加聚合规则</button>
+                    <div class="small text-muted">
+                        多条规则 → calc 时所有启用项的命中值累加为账单总额
+                    </div>
+                </div>
+
+                <div class="alert alert-light border mt-2 mb-0 small">
+                    <strong>A. 坐标定位</strong>（Cell 引用非空时优先生效）：
+                    限定到 sheet，直接取 <code>cell_ref</code> 对应单元格的数值。
+                    例：盛宏乔安「工资报表」N3 = 2,063,190.74（"实发工资"行）。<br>
+                    <strong>B. 标签定位</strong>（Cell 引用留空时启用）：
+                    限定到 sheet → 找含<code>列名</code>的表头列 → 找含<code>标签词</code>的行 → 取交点数字。
+                    例：义乌众新汇总表底「含税合计」× 表头「应付合计」= 839,153.37。<br>
+                    <strong>多条</strong>：calc 累加所有启用规则的命中值。
+                </div>
+                </div><!-- /aggregate-table-wrap -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="text-end mb-4">
+    <button class="btn btn-primary" onclick="saveAllRules()">保存账单识别规则</button>
+</div>
+
+<script src="{{ url_for('static', filename='js/attribution_panel.js') }}"></script>
+<script>
+const PID = {{ project_id|tojson }};
+const KIND = 'bill';
+const FORMAT_ID = new URLSearchParams(location.search).get('format_id') || null;
+const FMT_QS = FORMAT_ID ? `?format_id=${FORMAT_ID}` : '';
+
+document.querySelectorAll('#step-nav button').forEach(b => {
+    b.addEventListener('click', () => {
+        document.querySelectorAll('#step-nav button').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        const target = b.dataset.pane;
+        document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+        document.getElementById(target).classList.add('active');
+    });
+});
+
+function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function loadProject() {
+    const r = await fetch(`/api/projects/${PID}/classify/overview`);
+    const d = await r.json();
+    if (d.meta) {
+        document.getElementById('proj-title').textContent = d.meta.title;
+        document.getElementById('proj-meta').textContent = `${d.meta.enterprise_short} / 线上 ID ${d.meta.project_id}`;
+    }
+}
+
+let classifyRules = [];
+async function loadClassify() {
+    const r = await fetch(`/api/projects/${PID}/classify/rules/${KIND}${FMT_QS}`);
+    classifyRules = await r.json();
+    renderClassify();
+    renderCmSelector();
+}
+function renderClassify() {
+    const body = document.getElementById('step1-body');
+    if (!classifyRules.length) {
+        classifyRules.push({id:null, priority:100, match_columns:[], match_columns_any:null, match_excludes:null,
+            scan_rows:10, handler:'standard', column_mapping:null, enabled:false, match_count:0, note:''});
+    }
+    let html = '';
+    classifyRules.forEach((r, idx) => {
+        const mc = (r.match_columns || []).map(s => s.replace(/ /g, '!!!')).join(' ');
+        const mex = (r.match_excludes || []).map(s => s.replace(/ /g, '!!!')).join(' ');
+        html += `
+        <div class="rule-row" data-idx="${idx}">
+            <label class="d-flex align-items-center gap-1" style="font-size:12px;color:#444;cursor:pointer;"><input type="checkbox" class="form-check-input" data-fld="enabled" ${r.enabled?'checked':''}>启用</label>
+            <span class="lbl">特征列</span>
+            <input type="text" class="form-control form-control-sm grow" data-fld="match_columns" value="${escapeHtml(mc)}" placeholder="表头必含的列名，空格分隔">
+            <span class="lbl">排除列</span>
+            <input type="text" class="form-control form-control-sm grow" data-fld="match_excludes" value="${escapeHtml(mex)}" placeholder="任一出现即不匹配（可空）">
+            ${r.id ? `<button class="btn btn-sm btn-link text-danger py-0 px-1" onclick="deleteClassify(${idx})">×</button>` : `<button class="btn btn-sm btn-link py-0 px-1" onclick="cancelClassify(${idx})">取消</button>`}
+        </div>`;
+    });
+    html += `<div class="mt-2"><button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="addNewClassify()">+ 添加规则</button></div>`;
+    body.innerHTML = html;
+    classifyRules.forEach((r, i) => {
+        const cb = document.querySelector(`#step1-body .rule-row[data-idx="${i}"] [data-fld="enabled"]`);
+        if (cb) cb.checked = !!r.enabled;
+    });
+}
+function readClassifyFromDOM(idx) {
+    const card = document.querySelector(`#step1-body .rule-row[data-idx="${idx}"]`);
+    const arr = v => v.split(/\s+/).map(s=>s.trim()).filter(Boolean).map(s=>s.replace(/!!!/g, ' '));
+    const r = classifyRules[idx];
+    const mex = arr(card.querySelector('[data-fld="match_excludes"]').value);
+    return {id:r.id, priority:r.priority, match_columns:arr(card.querySelector('[data-fld="match_columns"]').value),
+        match_columns_any:r.match_columns_any, match_excludes: mex.length ? mex : null, scan_rows:r.scan_rows||10,
+        handler:r.handler, column_mapping:r.column_mapping, enabled:card.querySelector('[data-fld="enabled"]').checked, note:r.note};
+}
+async function saveClassify(idx) {
+    const data = readClassifyFromDOM(idx);
+    if (FORMAT_ID) data.format_id = FORMAT_ID;
+    const r = await fetch(`/api/projects/${PID}/classify/rules/${KIND}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+    if ((await r.json()).id) await loadClassify();
+}
+async function deleteClassify(idx) {
+    const r = classifyRules[idx];
+    if (!confirm(`确定删除该规则?`)) return;
+    const resp = await fetch(`/api/projects/${PID}/classify/rules/${r.id}`, {method:'DELETE'});
+    if ((await resp.json()).deleted) await loadClassify();
+}
+function cancelClassify(idx) { classifyRules.splice(idx,1); renderClassify(); }
+function addNewClassify() {
+    classifyRules.push({id:null, priority:100, match_columns:[], match_columns_any:null, match_excludes:null,
+        scan_rows:10, handler:'standard', column_mapping:null, enabled:true, match_count:0, note:''});
+    renderClassify();
+}
+
+function renderCmSelector() {
+    const sel = document.getElementById('cm-rule-select');
+    if (!classifyRules.length) { sel.innerHTML = '<option>无规则</option>'; return; }
+    sel.innerHTML = classifyRules.map((r,i) => `<option value="${i}">规则 ${i+1}：${escapeHtml((r.match_columns||[]).map(x=>x.replace(/ /g,'!!!')).join(' '))}（${escapeHtml(r.handler)}）</option>`).join('');
+    sel.onchange = () => fillCm(sel.value);
+    fillCm(0);
+}
+function fillCm(idx) {
+    const r = classifyRules[parseInt(idx||0)]; if (!r) return;
+    const cm = r.column_mapping || {};
+    document.querySelectorAll('#cm-tbody [data-cm]').forEach(inp => { inp.value = cm[inp.dataset.cm] || ''; });
+}
+async function saveColumnMapping() {
+    const idx = parseInt(document.getElementById('cm-rule-select').value || 0);
+    const cm = {};
+    document.querySelectorAll('#cm-tbody [data-cm]').forEach(inp => { if (inp.value.trim()) cm[inp.dataset.cm] = inp.value.trim(); });
+    const r = classifyRules[idx];
+    const payload = {...r, column_mapping:cm};
+    if (FORMAT_ID) payload.format_id = FORMAT_ID;
+    const resp = await fetch(`/api/projects/${PID}/classify/rules/${KIND}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    if ((await resp.json()).id) { await loadClassify(); alert('已保存'); }
+}
+
+async function seedDefault() {
+    if (!confirm('从 DEFAULT_RULES 应用本类规则模板？已有规则会跳过。')) return;
+    const r = await fetch(`/api/projects/${PID}/classify/seed`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({kind:KIND, replace:false})});
+    const res = await r.json();
+    alert('seed 完成: ' + JSON.stringify(res.inserted));
+    await loadClassify();
+}
+
+
+async function saveAllRules() {
+    let ok = 0, fail = 0, skip = 0;
+    const sel = document.getElementById('cm-rule-select');
+    if (sel && classifyRules[parseInt(sel.value||0)]) {
+        const cm = {};
+        document.querySelectorAll('#cm-tbody [data-cm]').forEach(inp => {
+            if (inp.value.trim()) cm[inp.dataset.cm] = inp.value.trim();
+        });
+        classifyRules[parseInt(sel.value||0)].column_mapping = cm;
+    }
+    for (let i = 0; i < classifyRules.length; i++) {
+        const card = document.querySelector(`#step1-body .rule-row[data-idx="${i}"]`);
+        if (!card) { skip++; continue; }
+        const data = readClassifyFromDOM(i);
+        if (!data.match_columns.length) { skip++; continue; }
+        if (FORMAT_ID) data.format_id = FORMAT_ID;
+        try {
+            const r = await fetch(`/api/projects/${PID}/classify/rules/${KIND}`,
+                {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+            if ((await r.json()).id) ok++; else fail++;
+        } catch (e) { fail++; }
+    }
+    // 保存项目归属
+    try {
+        const res = await AttributionPanel.collectAndSave();
+        if (res && res.saved >= 0) ok++;
+    } catch (e) { fail++; }
+    // 保存聚合标签账单规则
+    try {
+        const ar = await saveAggregateLabels();
+        if (ar && ar.inserted !== undefined) ok++;
+    } catch (e) { fail++; }
+    alert(`保存完成：成功 ${ok}, 失败 ${fail}, 跳过空行 ${skip}`);
+    await loadClassify();
+    await loadAggregateLabels();
+}
+
+async function loadFormatBanner() {
+    try {
+        const r = await fetch(`/api/projects/${PID}/formats?kind=${KIND}`);
+        const list = await r.json();
+        const f = list.find(x => x.id === FORMAT_ID);
+        if (f) {
+            document.getElementById('format-banner').classList.remove('d-none');
+            document.getElementById('format-banner-name').textContent = f.name + ` (handler=${f.handler})`;
+        }
+    } catch (e) {}
+}
+
+// === 聚合标签账单（真后端）===
+let aggNextIdx = 0;
+
+function toggleAggMode() {
+    const on = document.getElementById('aggregate-enabled').checked;
+    document.getElementById('aggregate-table-wrap').classList.toggle('d-none', !on);
+    document.getElementById('aggregate-help').classList.toggle('alert-info', !on);
+    document.getElementById('aggregate-help').classList.toggle('alert-primary', on);
+    // 首次开启 + 表格为空 → 添一行让用户配
+    if (on && document.getElementById('agg-tbody').children.length === 0) {
+        addAggRow();
+    }
+}
+
+function delAggRow(idx) {
+    const tr = document.querySelector(`#agg-tbody tr[data-agg-idx="${idx}"]`);
+    if (tr) tr.remove();
+}
+
+function _aggRowHtml(idx, rule) {
+    const r = rule || {};
+    const enabled = r.enabled !== false;
+    const esc = s => escapeHtml(s || '');
+    return `
+        <td><input type="checkbox" class="form-check-input" ${enabled ? 'checked' : ''} data-agg-fld="enabled"></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="留空=所有 sheet" value="${esc(r.sheet_pattern)}" data-agg-fld="sheet_pattern"></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="如 N3" value="${esc(r.cell_ref)}" data-agg-fld="cell_ref" style="text-transform:uppercase;"></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="如 含税合计" value="${esc(r.label)}" data-agg-fld="label"></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="如 应付合计" value="${esc(r.col_name)}" data-agg-fld="col_name"></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="备注（可选）" value="${esc(r.note)}" data-agg-fld="note"></td>
+        <td><button class="btn btn-sm btn-link text-danger py-0 px-1" onclick="delAggRow(${idx})">×</button></td>
+    `;
+}
+
+function addAggRow(rule) {
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-agg-idx', aggNextIdx);
+    tr.innerHTML = _aggRowHtml(aggNextIdx, rule);
+    document.getElementById('agg-tbody').appendChild(tr);
+    aggNextIdx++;
+}
+
+async function loadAggregateLabels() {
+    try {
+        const r = await fetch(`/api/projects/${PID}/aggregate-labels${FMT_QS}`);
+        const list = await r.json();
+        const tbody = document.getElementById('agg-tbody');
+        tbody.innerHTML = '';
+        aggNextIdx = 0;
+        list.forEach(rule => addAggRow(rule));
+        // 有规则 → 自动启用 + 展开
+        if (list.length > 0) {
+            document.getElementById('aggregate-enabled').checked = true;
+            document.getElementById('aggregate-table-wrap').classList.remove('d-none');
+            document.getElementById('aggregate-help').classList.add('alert-primary');
+            document.getElementById('aggregate-help').classList.remove('alert-info');
+        }
+    } catch (e) {
+        console.warn('loadAggregateLabels failed:', e);
+    }
+}
+
+function _collectAggRules() {
+    const rules = [];
+    document.querySelectorAll('#agg-tbody tr').forEach(tr => {
+        const get = fld => {
+            const el = tr.querySelector(`[data-agg-fld="${fld}"]`);
+            return el ? (el.type === 'checkbox' ? el.checked : el.value.trim()) : '';
+        };
+        const label = get('label');
+        const col_name = get('col_name');
+        const cell_ref = (get('cell_ref') || '').toUpperCase();
+        // 二选一：cell_ref 或 (label+col_name)
+        if (!cell_ref && (!label || !col_name)) return;
+        rules.push({
+            sheet_pattern: get('sheet_pattern'),
+            cell_ref,
+            label, col_name,
+            note: get('note'),
+            enabled: get('enabled'),
+        });
+    });
+    return rules;
+}
+
+async function saveAggregateLabels() {
+    // 关闭聚合模式 → 清空所有规则（保存空 list）
+    const enabled = document.getElementById('aggregate-enabled').checked;
+    const rules = enabled ? _collectAggRules() : [];
+    const payload = {format_id: FORMAT_ID, rules};
+    const r = await fetch(`/api/projects/${PID}/aggregate-labels`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+    });
+    return await r.json();
+}
+
+loadFormatBanner();
+loadProject();
+loadClassify();
+loadAggregateLabels();
+AttributionPanel.init({
+    container_id: 'step3-body',
+    project_id: PID,
+    category: 'kaoqin_bill',
+    format_id: FORMAT_ID,
+    show_enterprise: true,
+});
+</script>
+{% endblock %}

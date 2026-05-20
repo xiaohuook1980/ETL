@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>单价配置 v2 mock</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+body { padding: 20px; font-family: -apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif; }
+.dim-cell { color:#999; font-style:italic; }
+.match-col-header { background:#e8f0fe; }
+.preview-box { background:#f8f9fa; border:1px dashed #c0c0c0; padding:10px; border-radius:4px; font-size:12px; }
+.btn-link { text-decoration:none; }
+</style>
+</head>
+<body>
+
+<h4 class="mb-3">单价配置 v2 mock <span class="text-muted small">（组合关键字 + AND 匹配 + 时段）</span></h4>
+
+<div class="alert alert-info py-2 small">
+    <strong>设计要点</strong>：<br>
+    1. <strong>一个项目一份配置</strong>（项目级，不再是 unit_prices 那种跨项目独立行）<br>
+    2. 项目级配 <strong>3 个匹配维度</strong>的列名（来自 xlsx 列映射或 extra_data，留空=该维度不启用）<br>
+    3. 每条单价规则 = <strong>3 列关键字组合（AND）+ 单价 + 生效时段</strong>；空/* = 通配<br>
+    4. 多条命中按"具体度优先"（非通配字段越多越优先），同分按"上→下"顺序<br>
+    5. 关键字内逗号分隔多候选（OR），如"员工,临时工"<br>
+    6. 时段过滤：取 attendance.shift_date 在 [生效起, 生效止] 内的规则
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card mb-3">
+            <div class="card-body">
+                <h6 class="card-title">项目配置</h6>
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label small">项目</label>
+                        <input list="projects" class="form-control form-control-sm" value="深圳市星河劳务派遣有限公司 / 自由大电子烟">
+                        <datalist id="projects">
+                            <option value="青岛恒众源 / 中集集装箱"></option>
+                            <option value="云优聘 / 顺丰项目【新】"></option>
+                            <option value="深圳市星河劳务派遣有限公司 / 威玛斯电子烟"></option>
+                            <option value="深圳市星河劳务派遣有限公司 / 自由大电子烟"></option>
+                        </datalist>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">匹配维度（按列顺序填 xlsx 实际列名，留空=该维度不启用）</label>
+                        <div class="d-flex gap-1">
+                            <input class="form-control form-control-sm" placeholder="维度 1" value="部门">
+                            <input class="form-control form-control-sm" placeholder="维度 2" value="班次">
+                            <input class="form-control form-control-sm" placeholder="维度 3（可空）" value="">
+                        </div>
+                        <div class="form-text small">
+                            列名要在该项目的 attendance 字段或 extra_data 里能找到才有效
+                        </div>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <button class="btn btn-sm btn-primary">保存配置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="card-title mb-0">单价规则</h6>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary">+ 增加规则</button>
+                    </div>
+                </div>
+                <table class="table table-sm table-bordered align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:40px;">#</th>
+                            <th class="match-col-header" style="width:100px;">部门</th>
+                            <th class="match-col-header" style="width:100px;">班次</th>
+                            <th class="match-col-header text-muted" style="width:100px;">(未启用)</th>
+                            <th style="width:75px;">单价</th>
+                            <th style="width:85px;">单位</th>
+                            <th style="width:115px;">生效起</th>
+                            <th style="width:115px;">生效止</th>
+                            <th>备注</th>
+                            <th style="width:55px;">具体度</th>
+                            <th style="width:80px;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1</td>
+                            <td>部门1</td>
+                            <td>白班</td>
+                            <td><span class="dim-cell">*</span></td>
+                            <td class="text-end">21.00</td>
+                            <td>元/小时</td>
+                            <td>2024-01-01</td>
+                            <td>2024-12-31</td>
+                            <td>24 年价</td>
+                            <td><span class="badge bg-info">2</span></td>
+                            <td><a href="#" class="btn-link">编辑</a> <a href="#" class="btn-link text-danger">×</a></td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td>部门1</td>
+                            <td>白班</td>
+                            <td><span class="dim-cell">*</span></td>
+                            <td class="text-end">22.00</td>
+                            <td>元/小时</td>
+                            <td>2025-01-01</td>
+                            <td><span class="dim-cell">—</span></td>
+                            <td>25 年起涨价</td>
+                            <td><span class="badge bg-info">2</span></td>
+                            <td><a href="#" class="btn-link">编辑</a> <a href="#" class="btn-link text-danger">×</a></td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td>部门2</td>
+                            <td>白班</td>
+                            <td><span class="dim-cell">*</span></td>
+                            <td class="text-end">24.00</td>
+                            <td>元/小时</td>
+                            <td><span class="dim-cell">—</span></td>
+                            <td><span class="dim-cell">—</span></td>
+                            <td>无时段限制</td>
+                            <td><span class="badge bg-info">2</span></td>
+                            <td><a href="#" class="btn-link">编辑</a> <a href="#" class="btn-link text-danger">×</a></td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td>部门2</td>
+                            <td>夜班</td>
+                            <td><span class="dim-cell">*</span></td>
+                            <td class="text-end">28.00</td>
+                            <td>元/小时</td>
+                            <td><span class="dim-cell">—</span></td>
+                            <td><span class="dim-cell">—</span></td>
+                            <td></td>
+                            <td><span class="badge bg-info">2</span></td>
+                            <td><a href="#" class="btn-link">编辑</a> <a href="#" class="btn-link text-danger">×</a></td>
+                        </tr>
+                        <tr class="table-warning">
+                            <td>5</td>
+                            <td><input class="form-control form-control-sm" placeholder="* = 通配" value=""></td>
+                            <td><input class="form-control form-control-sm" placeholder="* = 通配" value="焊锡"></td>
+                            <td><input class="form-control form-control-sm" disabled placeholder="(未启用)"></td>
+                            <td><input class="form-control form-control-sm text-end" type="number" step="0.01" value="30"></td>
+                            <td>
+                                <select class="form-select form-select-sm">
+                                    <option>元/小时</option><option>元/天</option><option>元/件</option><option>元/单</option>
+                                </select>
+                            </td>
+                            <td><input class="form-control form-control-sm" type="date"></td>
+                            <td><input class="form-control form-control-sm" type="date"></td>
+                            <td><input class="form-control form-control-sm" placeholder="可选"></td>
+                            <td><span class="badge bg-info">1</span></td>
+                            <td><a href="#" class="btn-link">保存</a> <a href="#" class="btn-link text-secondary">取消</a></td>
+                        </tr>
+                        <tr>
+                            <td>6</td>
+                            <td>生产部</td>
+                            <td><span class="dim-cell">*</span></td>
+                            <td><span class="dim-cell">*</span></td>
+                            <td class="text-end">22.00</td>
+                            <td>元/小时</td>
+                            <td><span class="dim-cell">—</span></td>
+                            <td><span class="dim-cell">—</span></td>
+                            <td>兜底</td>
+                            <td><span class="badge bg-info">1</span></td>
+                            <td><a href="#" class="btn-link">编辑</a> <a href="#" class="btn-link text-danger">×</a></td>
+                        </tr>
+                        <tr class="table-info">
+                            <td>7</td>
+                            <td><strong>员工,锡焊</strong></td>
+                            <td><span class="dim-cell">*</span></td>
+                            <td><span class="dim-cell">*</span></td>
+                            <td class="text-end">22.00</td>
+                            <td>元/小时</td>
+                            <td><span class="dim-cell">—</span></td>
+                            <td><span class="dim-cell">—</span></td>
+                            <td>多关键字 OR：员工<u>或</u>锡焊都按 22 算</td>
+                            <td><span class="badge bg-info">1</span></td>
+                            <td><a href="#" class="btn-link">编辑</a> <a href="#" class="btn-link text-danger">×</a></td>
+                        </tr>
+                        <tr class="table-info">
+                            <td>8</td>
+                            <td><strong>样品线,焊接线</strong></td>
+                            <td><strong>白班,中班</strong></td>
+                            <td><span class="dim-cell">*</span></td>
+                            <td class="text-end">25.00</td>
+                            <td>元/小时</td>
+                            <td><span class="dim-cell">—</span></td>
+                            <td><span class="dim-cell">—</span></td>
+                            <td>组合 OR：部门∈{样品线,焊接线} AND 班次∈{白班,中班}</td>
+                            <td><span class="badge bg-info">2</span></td>
+                            <td><a href="#" class="btn-link">编辑</a> <a href="#" class="btn-link text-danger">×</a></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <h6 class="card-title">匹配预览（拿 attendance 几行实测）</h6>
+                <div class="preview-box">
+<pre class="mb-0">
+attendance 行                       部门    班次    工时日       匹中规则       单价
+─────────────────────────────────────────────────────────────────────────────────
+张三 / 部门1 / 白班 / 2024-06-15   部门1   白班    2024-06-15   规则#1         21.00（24 年价）
+张三 / 部门1 / 白班 / 2025-03-15   部门1   白班    2025-03-15   规则#2         22.00（25 年起涨价）
+李四 / 部门2 / 夜班 / 2025-04-10   部门2   夜班    2025-04-10   规则#4         28.00
+赵六 / 工厂A / 焊锡班 / 2026-03-20  工厂A   焊锡班  2026-03-20   规则#5         30.00（"焊锡"子串命中）
+钱七 / 部门3 / 白班 / 2025-05-01   部门3   白班    2025-05-01   无匹中         ⚠ 无（兜底 #6 部门=生产部 不命中）
+赵八 / 生产部 / 中班 / 2025-08-08  生产部  中班    2025-08-08   规则#6         22.00（兜底）
+</pre>
+                </div>
+                <div class="form-text small mt-2">
+                    匹中规则：3 列 AND；每列内"逗号分隔关键字" OR；带 * 的列不参与匹配；时段不在 [生效起,生效止] 内的规则跳过。<br>
+                    具体度 = 非通配字段数；多匹中按具体度降序 → 同分按 # 升序。
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4 small text-muted">
+    <p>注意点：</p>
+    <ul>
+        <li>"无匹中"的 attendance 行 calc 时按 0 算（或抛预警让用户加规则）</li>
+        <li>关键字支持子串模糊匹配（"白班" 命中"早白班/晚白班"）—— 待用户拍板</li>
+        <li>项目级匹配维度可改但要小心：改完老规则的关键字含义可能错位</li>
+        <li>这个 mock 只展示样式，未对接后端</li>
+    </ul>
+</div>
+
+</body>
+</html>

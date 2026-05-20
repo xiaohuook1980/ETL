@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}单价配置 - 入口{% endblock %}
+{% block content %}
+<style>
+.project-row { cursor: pointer; }
+.project-row:hover { background: #f0f7ff; }
+.dim-chip { background:#e8f0fe; color:#1a73e8; padding:1px 8px; border-radius:10px; font-size:11px; margin-right:4px; display:inline-block; }
+.empty-chip { background:#f3f4f5; color:#999; padding:1px 8px; border-radius:10px; font-size:11px; font-style:italic; margin-right:4px; display:inline-block; }
+.no-rule { color:#dc3545; font-weight:bold; }
+.has-rule { color:#198754; }
+</style>
+
+<div class="d-flex align-items-center mb-3 mt-3">
+    <a href="/" class="btn btn-outline-secondary btn-sm">&larr; 返回</a>
+    <h5 class="mb-0 ms-3">单价配置 · <span class="text-muted small">按项目管理（3 维 AND + 关键字 OR + 时段）</span></h5>
+    <div class="ms-auto d-flex gap-2">
+        <input type="text" id="filter" class="form-control form-control-sm" style="width:240px;" placeholder="过滤项目名/企业...">
+        <select id="status-filter" class="form-select form-select-sm" style="width:140px;">
+            <option value="all">全部项目</option>
+            <option value="configured">已配单价</option>
+            <option value="empty">未配单价</option>
+        </select>
+    </div>
+</div>
+
+<div class="alert alert-light border py-2 small mb-3">
+    每个项目独立配置：<strong>3 个匹配维度</strong>列名（来自 xlsx 列映射或 extra_data） + <strong>N 条单价规则</strong>（关键字 + 单价 + 时段）。点项目行进入详情页。
+</div>
+
+<div class="card">
+    <table class="table table-sm table-hover mb-0 align-middle" style="font-size:13px;">
+        <thead class="table-light">
+            <tr>
+                <th style="width:300px;">项目</th>
+                <th style="width:280px;">匹配维度（列名）</th>
+                <th style="width:80px;text-align:right;">规则数</th>
+                <th style="width:180px;">单价区间</th>
+                <th>最近更新</th>
+                <th style="width:80px;">状态</th>
+            </tr>
+        </thead>
+        <tbody id="rows-body">
+            <tr><td colspan="6" class="text-center text-muted py-4">加载中…</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+let allRows = [];
+
+function escapeHtml(s) {
+    return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function dimChips(d1, d2, d3) {
+    // 只显示已启用的维度；全空显示"(未配置)"
+    const enabled = [d1, d2, d3].filter(Boolean);
+    if (!enabled.length) return '<span class="empty-chip">(未配置)</span>';
+    return enabled.map(n => `<span class="dim-chip">${escapeHtml(n)}</span>`).join('');
+}
+
+function priceRange(r) {
+    if (!r.n_rules) return '<span class="text-muted">—</span>';
+    if (r.price_min === r.price_max) return `¥${r.price_min.toFixed(2)} ${escapeHtml(r.unit_main)}`;
+    return `¥${r.price_min.toFixed(2)} ~ ¥${r.price_max.toFixed(2)} ${escapeHtml(r.unit_main)}`;
+}
+
+function fmtTime(s) {
+    if (!s) return '—';
+    return s.replace('T', ' ').substring(0, 16);
+}
+
+function rowHtml(r) {
+    return `
+    <tr class="project-row" onclick="location.href='/unit-prices/${r.project_id}'">
+        <td>
+            <strong>${escapeHtml(r.project_title)}</strong><br>
+            <span class="text-muted small">${escapeHtml(r.enterprise_short || '')}</span><br>
+            <span class="text-muted small" style="font-size:10.5px;">${escapeHtml(r.project_id)}</span>
+        </td>
+        <td>${dimChips(r.dim1_col_name, r.dim2_col_name, r.dim3_col_name)}</td>
+        <td class="text-end ${r.n_rules ? 'has-rule' : 'no-rule'}"><strong>${r.n_rules} 条</strong></td>
+        <td>${priceRange(r)}</td>
+        <td><span class="text-muted small">${fmtTime(r.updated_at)}</span></td>
+        <td>
+            ${r.status === 'configured' ? '<span class="badge bg-success">已配</span>' : '<span class="badge bg-warning">未配</span>'}
+        </td>
+    </tr>`;
+}
+
+function render() {
+    const kw = (document.getElementById('filter').value || '').trim().toLowerCase();
+    const status = document.getElementById('status-filter').value;
+    let rows = allRows.filter(r => {
+        if (status === 'configured' && r.status !== 'configured') return false;
+        if (status === 'empty' && r.status !== 'empty') return false;
+        if (kw) {
+            const s = (r.project_title + ' ' + (r.enterprise_short||'')).toLowerCase();
+            if (!s.includes(kw)) return false;
+        }
+        return true;
+    });
+    const html = rows.length ? rows.map(rowHtml).join('') :
+        '<tr><td colspan="6" class="text-center text-muted py-4">无项目</td></tr>';
+    document.getElementById('rows-body').innerHTML = html;
+}
+
+async function loadData() {
+    const r = await fetch('/api/unit-prices');
+    allRows = await r.json();
+    render();
+}
+
+document.getElementById('filter').addEventListener('input', render);
+document.getElementById('status-filter').addEventListener('change', render);
+loadData();
+</script>
+{% endblock %}

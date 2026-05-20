@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Mock · 预付模式 · 出款申请</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+    body { background-color: #f5f6fa; }
+    .card { border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card-header { background-color: #fff; border-bottom: 1px solid #eee; }
+    .data-card { border:1px solid #e3e6f0; border-radius:6px; padding:10px 12px; height:100%; }
+    .data-card .lbl { font-size:12px; color:#888; }
+    .data-card .val { font-size:14px; }
+    .data-card.ok { border-left:3px solid #28a745; }
+    .data-card.warn { border-left:3px solid #ffc107; }
+    .data-card.hot { border-left:3px solid #fd7e14; background:#fff8f1; }
+    .peak-row { background:#fff; border:1px dashed #fd7e14; border-radius:4px; padding:4px 8px; margin-top:4px; font-size:12px; }
+    .mock-banner { background:#fff3cd; color:#664d03; padding:6px 12px; font-size:12px; text-align:center; border-bottom:1px solid #ffe69c; }
+    .card-actions { display:flex; gap:6px; align-items:center; }
+</style>
+</head>
+<body>
+
+<div class="mock-banner">⚠️ Mock 页面（预付模式 · 全量假数据）— 用于讨论右侧设计</div>
+
+<nav class="navbar navbar-dark bg-dark">
+    <div class="container"><a class="navbar-brand" href="#">小鱼风控系统</a></div>
+</nav>
+
+<div class="container mt-4">
+<div class="row mt-3">
+
+    <!-- 左侧（保持原样，不动） -->
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">出款申请</h5></div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">劳务公司</label>
+                    <select class="form-select"><option>云优聘</option></select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">项目</label>
+                    <select class="form-select"><option>顺丰[新]</option></select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">业务月份</label>
+                    <select class="form-select"><option>2026-05</option></select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">申请日期</label>
+                    <input type="date" class="form-control" value="2026-05-05">
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary flex-fill">普通核对</button>
+                    <button class="btn btn-warning flex-fill">预付核对</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧（预付模式 mock） -->
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">数据核对 <span class="badge bg-warning text-dark ms-2">预付模式</span></h5>
+                <span class="text-muted small">业务月 2026-05 · 申请日 2026-05-05</span>
+            </div>
+            <div class="card-body">
+
+                <!-- 2 类数据卡片：考勤 + 发薪流水（无账单 / 无工资表） -->
+                <div class="row g-2 mb-3">
+
+                    <!-- 考勤：采用 + 设置 -->
+                    <div class="col-12">
+                        <div class="data-card ok">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">考勤</span>
+                                <div class="card-actions">
+                                    <a href="kaoqin_settings.html" class="btn btn-sm btn-outline-secondary py-0 px-2">⚙ 设置</a>
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="checkbox" id="chk-att" checked>
+                                        <label class="form-check-label small" for="chk-att">采用</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row g-2 mt-1 small">
+                                <div class="col-3"><span class="lbl">最新日期</span><br><span class="val">2026-05-04</span></div>
+                                <div class="col-3"><span class="lbl">行数</span><br><span class="val">756</span> <span class="text-muted small">（已排 28）</span></div>
+                                <div class="col-3"><span class="lbl">本月覆盖</span><br><span class="val">05-01 ~ 05-04</span></div>
+                                <div class="col-3"><span class="lbl">近 7 日工时</span><br><span class="val">7,248 h</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 发薪流水：核心 + 采用 -->
+                    <div class="col-12">
+                        <div class="data-card hot">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">发薪流水 <span class="badge bg-danger ms-1">核心</span></span>
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="checkbox" id="chk-pay" checked>
+                                    <label class="form-check-label small" for="chk-pay">采用</label>
+                                </div>
+                            </div>
+                            <div class="mt-1 small">
+                                <div><span class="lbl">最新日期</span> <span class="val">2026-05-04</span> &nbsp;&nbsp; <span class="lbl">本月发薪</span> <span class="val">¥ 482,300（22 笔）</span></div>
+                                <div class="peak-row">
+                                    <strong>近 7 日发薪明细</strong>（申请日 2026-05-05 往前 7 日：04-29 ~ 05-05）
+                                </div>
+                                <table class="table table-sm mb-0 mt-1" style="font-size:12px;">
+                                    <thead class="table-light">
+                                        <tr><th>日期</th><th class="text-end">金额</th><th class="text-end">人次</th><th>标记</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>04-29</td><td class="text-end">¥ 38,200</td><td class="text-end">12</td><td></td></tr>
+                                        <tr><td>04-30</td><td class="text-end">¥ 52,500</td><td class="text-end">18</td><td></td></tr>
+                                        <tr><td>05-01</td><td class="text-end">¥ 0</td><td class="text-end">0</td><td><span class="text-muted">休</span></td></tr>
+                                        <tr class="table-warning"><td><strong>05-02</strong></td><td class="text-end"><strong>¥ 142,800</strong></td><td class="text-end">42</td><td><span class="badge bg-warning text-dark">峰值</span></td></tr>
+                                        <tr><td>05-03</td><td class="text-end">¥ 96,400</td><td class="text-end">31</td><td></td></tr>
+                                        <tr><td>05-04</td><td class="text-end">¥ 78,200</td><td class="text-end">24</td><td></td></tr>
+                                        <tr class="table-active"><td><strong>05-05</strong></td><td class="text-end"><strong>¥ 74,200</strong></td><td class="text-end">22</td><td><span class="badge bg-secondary">最近</span></td></tr>
+                                    </tbody>
+                                </table>
+                                <div class="mt-1">
+                                    <span class="lbl">峰值</span> <span class="val text-warning fw-bold">¥ 142,800</span>
+                                    &nbsp;&nbsp;<span class="lbl">平均</span> <span class="val">¥ 68,900</span>
+                                    &nbsp;&nbsp;<span class="lbl">最近</span> <span class="val">¥ 74,200</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 参数区（预付模式） -->
+                <div class="border rounded p-3 mb-3 bg-light">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label small mb-1">出款比例</label>
+                            <input type="number" class="form-control form-control-sm" value="0.8">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small mb-1">代收阈值 (元)</label>
+                            <input type="number" class="form-control form-control-sm" value="2000">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1">客户申请金额 (元)
+                                <span class="text-muted small">不填 = 顶格</span>
+                            </label>
+                            <input type="number" class="form-control form-control-sm" placeholder="不填取算法值；填了取 min(算法, 申请)">
+                        </div>
+
+                        <div class="col-md-5 mt-1">
+                            <label class="form-label small mb-1">基准日</label>
+                            <select class="form-select form-select-sm">
+                                <option selected>近 7 日最高（05-02 · ¥142,800）</option>
+                                <option>最近一天（05-05 · ¥74,200）</option>
+                                <option>近 7 日平均（¥68,900）</option>
+                                <option>指定日期</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mt-1">
+                            <label class="form-label small mb-1">预付天数</label>
+                            <input type="number" class="form-control form-control-sm" value="8">
+                        </div>
+                        <div class="col-md-4 mt-1">
+                            <label class="form-label small mb-1">账上结余 (元)</label>
+                            <input type="number" class="form-control form-control-sm" value="0">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 预付估算预览 -->
+                <div class="alert alert-warning small p-2 mb-3">
+                    <strong>预付估算预览</strong>：基准日金额 ¥142,800 × 预付天数 8 = <strong>¥1,142,400</strong>
+                    （正式计算以"开始审核"为准）
+                </div>
+
+                <!-- 拉取按钮（仅保留 考勤 + 发薪流水） -->
+                <div class="d-flex gap-2 mb-3">
+                    <button class="btn btn-outline-primary flex-fill">拉取最新数据（考勤 / 发薪流水）</button>
+                </div>
+
+                <!-- 开始审核 -->
+                <div class="text-end">
+                    <button class="btn btn-success btn-lg px-4">开始审核</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+</div>
+
+</body>
+</html>

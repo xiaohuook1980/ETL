@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Mock · 梦寺达 · 项目归属规则</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+    body { background-color: #f5f6fa; }
+    .card { border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card-header { background-color: #fff; border-bottom: 1px solid #eee; }
+    .mock-banner { background:#fff3cd; color:#664d03; padding:6px 12px; font-size:12px; text-align:center; border-bottom:1px solid #ffe69c; }
+    .rule-tbl td, .rule-tbl th { vertical-align: middle; font-size:14px; }
+    code.kw { background:#eef2ff; color:#4a4f9f; padding:1px 6px; border-radius:3px; font-size:12px; margin-right:4px; display:inline-block; }
+    .nav-tabs .nav-link.active { background:#fff; }
+    .pane { display:none; }
+    .pane.active { display:block; }
+</style>
+</head>
+<body>
+<div class="mock-banner">⚠️ Mock 页面（梦寺达 · 项目归属规则）</div>
+
+<nav class="navbar navbar-dark bg-dark">
+    <div class="container"><a class="navbar-brand" href="#">小鱼风控系统</a></div>
+</nav>
+
+<div class="container mt-4">
+
+    <div class="d-flex align-items-center mb-3">
+        <a href="index.html" class="btn btn-outline-secondary btn-sm">&larr; 返回</a>
+        <h5 class="mb-0 ms-3">项目归属规则 · <span class="text-primary">梦寺达</span></h5>
+        <span class="text-muted small ms-2">解析时按以下规则把数据装到对应项目</span>
+    </div>
+
+    <div class="alert alert-info small p-2 mb-3">
+        <strong>解析顺序</strong>（每类独立配置）：每个 sheet → 先用 <strong>Sheet 规则</strong>匹配；该 sheet 是多项目混合时 → 用 <strong>列名规则</strong>逐行匹配。
+    </div>
+
+    <!-- 3 类 tab -->
+    <ul class="nav nav-tabs mb-3" id="cat-tabs">
+        <li class="nav-item"><a class="nav-link active" href="#" data-tab="kz">考勤 + 账单</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" data-tab="wage">工资表</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" data-tab="payroll">发薪流水</a></li>
+    </ul>
+
+    <!-- ============ 考勤+账单 ============ -->
+    <div class="pane active" id="pane-kz">
+        <div class="text-muted small mb-2">来源：甲方系统导出（一份表常含工时 + 金额）</div>
+
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>Sheet 规则</strong>
+                <span class="text-muted small ms-2">sheet 名含关键词 → 该 sheet 整页装到对应项目</span>
+                <button class="btn btn-sm btn-primary py-0 px-2 ms-auto">+ 增加</button>
+            </div>
+            <table class="table table-sm mb-0 rule-tbl">
+                <thead class="table-light">
+                    <tr><th style="width:240px;">关键词</th><th>项目</th><th style="width:120px;">最近匹配</th><th style="width:120px;" class="text-end">操作</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code class="kw">动物园</code><code class="kw">动物世界</code></td><td>长隆动物世界</td><td>2 次</td><td class="text-end"><button class="btn btn-sm btn-outline-secondary py-0 px-2">编辑</button></td></tr>
+                    <tr><td><code class="kw">水上乐园</code></td><td>长隆水上乐园</td><td>0 次</td><td class="text-end"><button class="btn btn-sm btn-outline-secondary py-0 px-2">编辑</button></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>列名规则</strong>
+                <span class="text-muted small ms-2">行级归属：按某列的值匹配项目</span>
+                <button class="btn btn-sm btn-primary py-0 px-2 ms-auto">+ 增加</button>
+            </div>
+            <div class="card-body py-2">
+                <label class="form-label small mb-1">用哪一列判定</label>
+                <input type="text" class="form-control form-control-sm" value="劳务公司|项目|项目名" style="max-width:380px;">
+                <div class="text-muted small mt-1">表头里搜上述任一列名，命中后用该列每行的值匹配下面的关键词</div>
+            </div>
+            <table class="table table-sm mb-0 rule-tbl">
+                <thead class="table-light">
+                    <tr><th style="width:240px;">关键词</th><th>项目</th><th style="width:120px;">最近匹配</th><th style="width:120px;" class="text-end">操作</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="text-muted"><td colspan="4" class="text-center small py-2">梦寺达暂无多项目混合的甲方导出 → 列名规则可空</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ============ 工资表 ============ -->
+    <div class="pane" id="pane-wage">
+        <div class="text-muted small mb-2">来源：劳务公司自编（常一文件多 sheet）</div>
+
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>Sheet 规则</strong>
+                <span class="text-muted small ms-2">sheet 名含关键词 → 该 sheet 整页装到对应项目</span>
+                <button class="btn btn-sm btn-primary py-0 px-2 ms-auto">+ 增加</button>
+            </div>
+            <table class="table table-sm mb-0 rule-tbl">
+                <thead class="table-light">
+                    <tr><th style="width:240px;">关键词</th><th>项目</th><th style="width:120px;">最近匹配</th><th style="width:120px;" class="text-end">操作</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code class="kw">动物园</code><code class="kw">动物世界</code></td><td>长隆动物世界</td><td>3 次</td><td class="text-end"><button class="btn btn-sm btn-outline-secondary py-0 px-2">编辑</button></td></tr>
+                    <tr><td><code class="kw">水上乐园</code></td><td>长隆水上乐园</td><td>0 次</td><td class="text-end"><button class="btn btn-sm btn-outline-secondary py-0 px-2">编辑</button></td></tr>
+                    <tr><td><code class="kw">企鹅</code></td><td>珠海长隆企鹅酒店</td><td>1 次</td><td class="text-end"><button class="btn btn-sm btn-outline-secondary py-0 px-2">编辑</button></td></tr>
+                    <tr><td><code class="kw">横琴</code></td><td>珠海长隆横琴酒店</td><td>1 次</td><td class="text-end"><button class="btn btn-sm btn-outline-secondary py-0 px-2">编辑</button></td></tr>
+                    <tr><td><code class="kw">飞船</code></td><td>珠海长隆飞船酒店</td><td>1 次</td><td class="text-end"><button class="btn btn-sm btn-outline-secondary py-0 px-2">编辑</button></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>列名规则</strong>
+                <span class="text-muted small ms-2">行级归属（工资表很少需要，一般 sheet 级就够）</span>
+                <button class="btn btn-sm btn-primary py-0 px-2 ms-auto">+ 增加</button>
+            </div>
+            <div class="card-body py-2">
+                <label class="form-label small mb-1">用哪一列判定</label>
+                <input type="text" class="form-control form-control-sm" placeholder="留空 = 不启用列名规则" style="max-width:380px;">
+            </div>
+            <table class="table table-sm mb-0 rule-tbl">
+                <thead class="table-light">
+                    <tr><th style="width:240px;">关键词</th><th>项目</th><th style="width:120px;">最近匹配</th><th style="width:120px;" class="text-end">操作</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="text-muted"><td colspan="4" class="text-center small py-2">未配置</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ============ 发薪流水 ============ -->
+    <div class="pane" id="pane-payroll">
+        <div class="text-muted small mb-2">来源：银行代发流水（账户跨项目共用，主要靠备注列分流）</div>
+
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>Sheet 规则</strong>
+                <span class="text-muted small ms-2">银行流水通常单 sheet，规则可空</span>
+                <button class="btn btn-sm btn-primary py-0 px-2 ms-auto">+ 增加</button>
+            </div>
+            <table class="table table-sm mb-0 rule-tbl">
+                <thead class="table-light">
+                    <tr><th style="width:240px;">关键词</th><th>项目</th><th style="width:120px;">最近匹配</th><th style="width:120px;" class="text-end">操作</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="text-muted"><td colspan="4" class="text-center small py-2">未配置</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>列名规则</strong>
+                <span class="text-muted small ms-2">银行流水主要用这条：按备注列含"YYYY.M项目名"分流</span>
+                <button class="btn btn-sm btn-primary py-0 px-2 ms-auto">+ 增加</button>
+            </div>
+            <div class="card-body py-2">
+                <label class="form-label small mb-1">用哪一列判定</label>
+                <input type="text" class="form-control form-control-sm" value="备注|附言|摘要|交易备注" style="max-width:380px;">
+                <div class="text-muted small mt-1">银行流水的项目特征通常在备注/附言列，列名各家银行不同</div>
+            </div>
+            <table class="table table-sm mb-0 rule-tbl">
+                <thead class="table-light">
+                    <tr><th style="width:280px;">关键词</th><th>项目</th><th style="width:120px;">最近匹配</th><th style="width:120px;" class="text-end">操作</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code class="kw">动物园</code><code class="kw">动物世界</code><code class="kw">长隆动物</code></td><td>长隆动物世界</td><td>4 次</td><td class="text-end"><button class="btn btn-sm btn-outline-secondary py-0 px-2">编辑</button></td></tr>
+                    <tr><td><code class="kw">水上乐园</code></td><td>长隆水上乐园</td><td>0 次</td><td class="text-end"><button class="btn btn-sm btn-outline-secondary py-0 px-2">编辑</button></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 不命中怎么办（全局） -->
+    <div class="card mb-4">
+        <div class="card-header"><strong>都不命中怎么办（全局策略）</strong></div>
+        <div class="card-body">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="unmatched" id="u1" checked>
+                <label class="form-check-label small" for="u1"><strong>跳过 + 进入"待人工 review"列表</strong>（推荐：避免装错）</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="unmatched" id="u2">
+                <label class="form-check-label small" for="u2">强行装到指定兜底项目 <select class="form-select form-select-sm d-inline-block w-auto ms-1"><option>选项目...</option></select></label>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+document.querySelectorAll('#cat-tabs .nav-link').forEach(a => {
+    a.addEventListener('click', e => {
+        e.preventDefault();
+        document.querySelectorAll('#cat-tabs .nav-link').forEach(x => x.classList.remove('active'));
+        a.classList.add('active');
+        document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+        document.getElementById('pane-' + a.dataset.tab).classList.add('active');
+    });
+});
+</script>
+</body>
+</html>

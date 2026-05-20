@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Mock · 考勤模板设计器 · 新广益</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+body { background:#f6f8fa; font-size:14px; }
+.left-col { width:240px; flex-shrink:0; }
+.right-col { flex-grow:1; }
+.template-card { padding:10px 12px; border:1px solid #dde2ea; border-radius:6px; margin-bottom:8px; cursor:pointer; background:#fff; }
+.template-card.active { border-color:#4a6cf7; background:#eef2ff; }
+.template-card .tname { font-weight:600; }
+.template-card .tmeta { color:#999; font-size:12px; }
+.dim-section { background:#fff; border:1px solid #e9ecef; border-radius:6px; padding:14px 16px; margin-bottom:14px; }
+.dim-section h6 { font-weight:600; color:#444; padding:6px 10px; background:#f0f4ff; border-left:3px solid #4a6cf7; border-radius:4px; margin-bottom:12px; }
+.dim-section .dim-label { display:inline-block; background:#dbe5ff; color:#3850a3; font-size:11px; padding:1px 6px; border-radius:3px; margin-right:6px; }
+.field-row { display:flex; gap:8px; align-items:center; padding:6px 0; font-size:13px; }
+.field-row .lbl { color:#666; font-size:12px; min-width:80px; }
+.note-box { background:#fffbea; border:1px solid #f0d985; border-radius:4px; padding:6px 10px; font-size:12px; color:#866900; margin-bottom:8px; }
+.preview-table { font-size:11px; }
+.preview-table td { padding:2px 4px; border:1px solid #ddd; max-width:100px; overflow:hidden; }
+.preview-table .hl { background:#fff3cd; }
+code { background:#f5f5f5; padding:1px 4px; border-radius:3px; }
+</style>
+</head>
+<body>
+<div class="container-fluid py-3">
+  <div class="d-flex align-items-center mb-3">
+    <a href="#" class="btn btn-outline-secondary btn-sm">&larr; 返回项目</a>
+    <h5 class="mb-0 ms-3">考勤模板设计器 · <span class="text-primary">新广益电子（似马韶华）</span></h5>
+    <span class="ms-auto text-muted small">project_id: 2009158029142450177</span>
+  </div>
+
+  <div class="alert alert-info py-2 small mb-3">
+    <strong>专门页面</strong>：本页面为"横向 pivot 类"考勤设计（日期作列头，行级 unpivot 入 mart）。
+    与 standard 考勤 (<a href="#">classify/attendance</a>) 不同——standard 是"竖向表头每行一条"，本页处理"日期横向铺开"格式。<br>
+    一个项目可以同时配多套模板，但新广益所有 6 份文件结构一致，只需 1 套"月度横向"模板即可。
+  </div>
+
+  <div>
+    <div>
+      <!-- 文件类型归属 -->
+      <div class="dim-section">
+        <h6>文件类型归属（识别哪些 sheet 走本模板）</h6>
+        <div class="note-box">
+          <strong>判定逻辑</strong>：项目已绑横向 pivot 模板（仅考勤/账单可能用），引擎只需在前 10 行内找一行"≥N 个连续数字 cell" → 即为目标 sheet。
+        </div>
+        <div class="field-row">
+          <span class="lbl">扫描行范围</span>
+          <input type="number" class="form-control form-control-sm" style="width:80px" value="1">
+          <span class="text-muted">~</span>
+          <input type="number" class="form-control form-control-sm" style="width:80px" value="10">
+        </div>
+        <div class="field-row">
+          <span class="lbl">最少连续数字</span>
+          <input type="number" class="form-control form-control-sm" style="width:80px" value="10">
+          <span class="text-muted small ms-2">一行内连续 ≥N 个数字 cell（1-31 范围）即认定为日期行 → 命中本模板</span>
+        </div>
+      </div>
+
+      <!-- 列映射 -->
+      <div class="dim-section">
+        <h6>列映射</h6>
+        <div class="note-box">
+          静态列 = 按表头列名直接映射 mart 字段（跟 standard 一样）；动态列 = <strong>仅"日期"</strong>。日期格的值（工时/件数）跟动态列绑定，不单独映射。
+        </div>
+
+        <strong class="small">静态列映射（按 row3 表头匹配，跟 standard 一致）：</strong>
+        <table class="table table-sm mt-2" style="font-size:13px;">
+          <thead class="table-light">
+            <tr><th style="width:200px;">mart 字段</th><th>表头列名（逗号分隔多候选）</th><th style="width:30%;">备注</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>name_raw</strong> <span class="text-danger small">*</span></td>
+              <td><input type="text" class="form-control form-control-sm" value="姓名"></td>
+              <td class="small text-muted">必填</td>
+            </tr>
+            <tr>
+              <td>floor_or_group</td>
+              <td><input type="text" class="form-control form-control-sm" value="所在部门"></td>
+              <td class="small text-muted">部门</td>
+            </tr>
+            <tr>
+              <td>shift_name</td>
+              <td><input type="text" class="form-control form-control-sm" value="班别"></td>
+              <td class="small text-muted">部分 sheet 缺此列也能跑</td>
+            </tr>
+            <tr>
+              <td>extra_data</td>
+              <td><input type="text" class="form-control form-control-sm" value="合计工时,夜班天数"></td>
+              <td class="small text-muted">校验值入 JSON</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <strong class="small mt-4 d-block">动态列：日期（引擎自动识别，无需配置）</strong>
+        <div class="note-box mt-2">
+          • 日期标号行 = "≥N 个连续数字 cell"那一行（文件类型归属步骤已找到）<br>
+          • 数据起始行 = 日期标号行下一行<br>
+          • 日期格的值自动入 <code>attendance.hours</code>（或 <code>quantity</code>，按单价配置的单位自动决定）<br>
+          <strong>周期解析：</strong>扫日期行上方 1-3 行找周期信息：<br>
+          &nbsp;&nbsp;&nbsp;• 只有月份（如 <code>4 月考勤</code>）→ 自然月 1-30/31<br>
+          &nbsp;&nbsp;&nbsp;• 含起止（如 <code>4.26-5.25</code> / <code>2026年（4.26-5.25)</code>）→ 自定义周期，按数字递减点跨月推算<br>
+          都没找到 → sheet 名兜底
+        </div>
+
+        <details class="mt-3">
+          <summary class="text-muted small" style="cursor:pointer">▸ 预览：模板如何解析新广益 xlsx</summary>
+          <table class="preview-table mt-2 table-bordered" style="border-collapse:collapse;">
+            <tr><td colspan="6">row1: 苏州市新广益股份电子有限公司</td></tr>
+            <tr><td colspan="6">row2: 2026年（4.26-5.25）<span class="text-primary">← 周期解析行</span></td></tr>
+            <tr class="hl"><td>序号</td><td>姓名</td><td>所在部门</td><td>班别</td><td colspan="2">合计工时 / 夜班天数</td></tr>
+            <tr class="hl"><td></td><td></td><td></td><td></td><td>26</td><td>27</td></tr>
+            <tr><td>1</td><td>崔义豪</td><td>谢村切片</td><td></td><td>10.5</td><td>10.5</td></tr>
+          </table>
+          <div class="small text-muted mt-1">
+            → 1 行 unpivot 成 30 条 attendance<br>
+            → name_raw=崔义豪, floor_or_group=谢村切片, hours=10.5, shift_date=2026-04-26（周期解析）<br>
+            → extra_data 装 {合计工时:272.5, 夜班天数:0}
+          </div>
+        </details>
+      </div>
+
+      <div class="text-end mb-4">
+        <button class="btn btn-outline-secondary">取消</button>
+        <button class="btn btn-outline-secondary">删除模板</button>
+        <button class="btn btn-primary">保存模板</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

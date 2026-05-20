@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block title %}单价配置详情{% endblock %}
+{% block content %}
+<style>
+.dim-cell { color:#999; font-style:italic; }
+.match-col-header { background:#e8f0fe; }
+.dim-extra { display:none !important; }
+.dim-extra.shown { display:block !important; }
+</style>
+
+<div class="d-flex align-items-center mb-3 mt-3">
+    <a href="/unit-prices" class="btn btn-outline-secondary btn-sm">&larr; 返回项目列表</a>
+    <h5 class="mb-0 ms-3" id="page-title">加载中…</h5>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="card-title">项目配置（匹配列名）</h6>
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small">维度 1 列名</label>
+                <input id="dim1_col" class="form-control form-control-sm" placeholder="如：部门">
+            </div>
+            <div class="col-md-3 dim-extra" id="dim2-wrap">
+                <label class="form-label small">维度 2 列名
+                    <a href="#" class="text-danger text-decoration-none small ms-1" onclick="removeDim(2);return false;" title="移除该维度">×</a>
+                </label>
+                <input id="dim2_col" class="form-control form-control-sm" placeholder="如：班次">
+            </div>
+            <div class="col-md-3 dim-extra" id="dim3-wrap">
+                <label class="form-label small">维度 3 列名
+                    <a href="#" class="text-danger text-decoration-none small ms-1" onclick="removeDim(3);return false;" title="移除该维度">×</a>
+                </label>
+                <input id="dim3_col" class="form-control form-control-sm" placeholder="如：职务">
+            </div>
+            <div class="col-md-3 text-end">
+                <button class="btn btn-sm btn-link" id="btn-add-dim" onclick="addDim()">+ 增加维度</button>
+                <button class="btn btn-sm btn-primary" onclick="saveConfig()">保存维度配置</button>
+            </div>
+        </div>
+        <div class="form-text small mt-1">
+            列名要在该项目的 attendance 标准字段或 extra_data 里能找到（常用：部门/工种/班次/楼层/级别）。大多数项目 1 个维度足够。
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="card-title mb-0">单价规则</h6>
+            <button class="btn btn-sm btn-outline-primary" onclick="addRule()">+ 增加规则</button>
+        </div>
+        <table class="table table-sm table-bordered align-middle mb-0" style="font-size:13px;">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:35px;">#</th>
+                    <th class="match-col-header" id="th-d1">维度 1</th>
+                    <th class="match-col-header dim-extra-col" id="th-d2">维度 2</th>
+                    <th class="match-col-header dim-extra-col" id="th-d3">维度 3</th>
+                    <th style="width:90px;">单价</th>
+                    <th style="width:130px;">生效起</th>
+                    <th style="width:130px;">生效止</th>
+                    <th>备注</th>
+                    <th style="width:90px;">操作</th>
+                </tr>
+            </thead>
+            <tbody id="rules-body">
+                <tr><td colspan="9" class="text-center text-muted py-4">加载中…</td></tr>
+            </tbody>
+        </table>
+        <div class="form-text small mt-2">
+            <strong>匹配规则</strong>：多列 AND；每列内"逗号分隔关键字" OR（如"员工,锡焊"任一命中）；列留空/<code>*</code> = 通配；
+            时段不在 [生效起,生效止] 内的规则跳过；多匹中按"具体度（非通配字段数）降序"取首个，单位默认元/小时。
+        </div>
+    </div>
+</div>
+
+<script>
+const PROJECT_ID = '{{ project_id }}';
+let data = null;
+let pendingNew = [];
+
+function escapeHtml(s) {
+    return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadData() {
+    const r = await fetch(`/api/unit-prices/${PROJECT_ID}`);
+    if (!r.ok) {
+        document.getElementById('page-title').textContent = '项目不存在';
+        return;
+    }
+    data = await r.json();
+    document.getElementById('page-title').innerHTML =
+        `<strong>${escapeHtml(data.project.project_title)}</strong>` +
+        ` <span class="text-muted small">${escapeHtml(data.project.enterprise_short || '')} · ${PROJECT_ID}</span>`;
+    document.getElementById('dim1_col').value = data.config.dim1_col_name || '';
+    document.getElementById('dim2_col').value = data.config.dim2_col_name || '';
+    document.getElementById('dim3_col').value = data.config.dim3_col_name || '';
+    // 维度 2/3 有值就展开
+    if (data.config.dim2_col_name) document.getElementById('dim2-wrap').classList.add('shown');
+    if (data.config.dim3_col_name) document.getElementById('dim3-wrap').classList.add('shown');
+    updateAddDimBtn();
+    renderRules();
+}
+
+function addDim() {
+    const d2 = document.getElementById('dim2-wrap');
+    const d3 = document.getElementById('dim3-wrap');
+    if (!d2.classList.contains('shown')) {
+        d2.classList.add('shown');
+    } else if (!d3.classList.contains('shown')) {
+        d3.classList.add('shown');
+    }
+    updateAddDimBtn();
+    renderRules();
+}
+
+async function removeDim(n) {
+    if (!confirm(`确认移除维度 ${n}？该维度的所有规则关键字会被清空。`)) return;
+    document.getElementById(`dim${n}_col`).value = '';
+    document.getElementById(`dim${n}-wrap`).classList.remove('shown');
+    // 维度 2 移除时，把维度 3 收起前需要先把 dim3 内容降级到 dim2（按 UI 直观度）
+    // 简单起见：直接清空当前那个，不动其他
+    updateAddDimBtn();
+    await saveConfig();   // 自动保存 → 后端清空对应 dim*_col_name
+}
+
+function updateAddDimBtn() {
+    const d2 = document.getElementById('dim2-wrap').classList.contains('shown');
+    const d3 = document.getElementById('dim3-wrap').classList.contains('shown');
+    document.getElementById('btn-add-dim').style.display = (d2 && d3) ? 'none' : '';
+}
+
+function renderRules() {
+    const d1 = document.getElementById('dim1_col').value.trim();
+    const d2 = document.getElementById('dim2_col').value.trim();
+    const d3 = document.getElementById('dim3_col').value.trim();
+    const d2shown = document.getElementById('dim2-wrap').classList.contains('shown');
+    const d3shown = document.getElementById('dim3-wrap').classList.contains('shown');
+
+    document.getElementById('th-d1').textContent = d1 || '维度 1';
+    document.getElementById('th-d2').textContent = d2 || '维度 2';
+    document.getElementById('th-d3').textContent = d3 || '维度 3';
+    // 隐藏未展开的维度列
+    document.getElementById('th-d2').style.display = d2shown ? '' : 'none';
+    document.getElementById('th-d3').style.display = d3shown ? '' : 'none';
+
+    let html = '';
+    pendingNew.forEach((r, i) => {
+        r._idx = 'new' + i;
+        html += ruleHtml(r, true);
+    });
+    (data?.rules || []).forEach((r, i) => {
+        r._idx = i;
+        html += ruleHtml(r, false);
+    });
+    const colspan = 6 + (d2shown ? 1 : 0) + (d3shown ? 1 : 0);
+    if (!html) html = `<tr><td colspan="${colspan}" class="text-center text-muted py-4">无规则，点"+ 增加规则"</td></tr>`;
+    document.getElementById('rules-body').innerHTML = html;
+}
+
+function dimCell(v, dimEnabled) {
+    if (!dimEnabled) return '';
+    if (!v || v === '*') return '<span class="dim-cell">*</span>';
+    return escapeHtml(v);
+}
+
+function ruleHtml(r, isNew) {
+    const d1 = document.getElementById('dim1_col').value.trim();
+    const d2 = document.getElementById('dim2_col').value.trim();
+    const d3 = document.getElementById('dim3_col').value.trim();
+    const d2shown = document.getElementById('dim2-wrap').classList.contains('shown');
+    const d3shown = document.getElementById('dim3-wrap').classList.contains('shown');
+    const editing = isNew || r._editing;
+
+    if (!editing) {
+        let cells = `
+            <td>${typeof r._idx === 'number' ? r._idx + 1 : ''}</td>
+            <td>${dimCell(r.dim1_keywords, true)}</td>`;
+        if (d2shown) cells += `<td>${dimCell(r.dim2_keywords, true)}</td>`;
+        if (d3shown) cells += `<td>${dimCell(r.dim3_keywords, true)}</td>`;
+        cells += `
+            <td class="text-end">${r.price.toFixed(2)}</td>
+            <td>${r.effective_start || '<span class="dim-cell">—</span>'}</td>
+            <td>${r.effective_end || '<span class="dim-cell">—</span>'}</td>
+            <td>${escapeHtml(r.note || '')}</td>
+            <td>
+                <a href="#" class="text-decoration-none" onclick="startEdit(${r._idx});return false;">编辑</a>
+                <a href="#" class="text-decoration-none text-danger ms-1" onclick="deleteRule(${r.id});return false;">×</a>
+            </td>`;
+        return `<tr data-idx="${r._idx}">${cells}</tr>`;
+    }
+
+    let cells = `
+        <td>${isNew ? '新' : (r._idx + 1)}</td>
+        <td><input class="form-control form-control-sm" data-fld="dim1_keywords"
+                   value="${escapeHtml(r.dim1_keywords||'')}" placeholder="${d1 ? '关键字,逗号分隔' : '先在上方填列名'}" ${d1?'':'disabled'}></td>`;
+    if (d2shown) cells += `
+        <td><input class="form-control form-control-sm" data-fld="dim2_keywords"
+                   value="${escapeHtml(r.dim2_keywords||'')}" placeholder="${d2 ? '关键字,逗号分隔' : '先在上方填列名'}" ${d2?'':'disabled'}></td>`;
+    if (d3shown) cells += `
+        <td><input class="form-control form-control-sm" data-fld="dim3_keywords"
+                   value="${escapeHtml(r.dim3_keywords||'')}" placeholder="${d3 ? '关键字,逗号分隔' : '先在上方填列名'}" ${d3?'':'disabled'}></td>`;
+    cells += `
+        <td><input class="form-control form-control-sm text-end" type="number" step="0.01" data-fld="price"
+                   value="${r.price||''}"></td>
+        <td><input type="date" class="form-control form-control-sm" data-fld="effective_start"
+                   value="${r.effective_start||''}"></td>
+        <td><input type="date" class="form-control form-control-sm" data-fld="effective_end"
+                   value="${r.effective_end||''}"></td>
+        <td><input class="form-control form-control-sm" data-fld="note" value="${escapeHtml(r.note||'')}"></td>
+        <td>
+            <a href="#" class="text-decoration-none" onclick="saveRule('${r._idx}', ${isNew?'true':'false'});return false;">保存</a>
+            <a href="#" class="text-decoration-none text-secondary ms-1" onclick="${isNew?'cancelNew':'cancelEdit'}('${r._idx}');return false;">取消</a>
+        </td>`;
+    return `<tr data-idx="${r._idx}" class="table-warning">${cells}</tr>`;
+}
+
+function addRule() {
+    pendingNew.push({dim1_keywords:'', dim2_keywords:'', dim3_keywords:'',
+        price:'', unit:'元/小时', effective_start:'', effective_end:'',
+        priority:100, note:''});
+    renderRules();
+}
+
+function cancelNew(idx) {
+    const i = parseInt(String(idx).replace('new',''));
+    pendingNew.splice(i, 1);
+    renderRules();
+}
+
+function startEdit(idx) {
+    data.rules[idx]._editing = true;
+    renderRules();
+}
+
+function cancelEdit(idx) {
+    delete data.rules[parseInt(idx)]._editing;
+    renderRules();
+}
+
+async function saveConfig() {
+    const payload = {
+        dim1_col_name: document.getElementById('dim1_col').value.trim(),
+        // 未展开的维度强制清空（用户折叠了即不启用）
+        dim2_col_name: document.getElementById('dim2-wrap').classList.contains('shown')
+                       ? document.getElementById('dim2_col').value.trim() : '',
+        dim3_col_name: document.getElementById('dim3-wrap').classList.contains('shown')
+                       ? document.getElementById('dim3_col').value.trim() : '',
+    };
+    const r = await fetch(`/api/unit-prices/${PROJECT_ID}/config`,
+        {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+    const res = await r.json();
+    if (res.error) { alert('保存失败：' + res.error); return; }
+    await loadData();
+}
+
+async function saveRule(idx, isNew) {
+    const tr = document.querySelector(`tr[data-idx="${idx}"]`);
+    const get = f => {
+        const el = tr.querySelector(`[data-fld="${f}"]`);
+        return el ? el.value.trim() : '';
+    };
+    const d2shown = document.getElementById('dim2-wrap').classList.contains('shown');
+    const d3shown = document.getElementById('dim3-wrap').classList.contains('shown');
+    const payload = {
+        dim1_keywords: get('dim1_keywords'),
+        dim2_keywords: d2shown ? get('dim2_keywords') : '',
+        dim3_keywords: d3shown ? get('dim3_keywords') : '',
+        price: parseFloat(get('price')) || 0,
+        unit: '元/小时',        // 固定，不让用户改
+        effective_start: get('effective_start') || null,
+        effective_end: get('effective_end') || null,
+        priority: 100,           // 固定，不让用户改
+        note: get('note'),
+    };
+    if (!payload.price || payload.price <= 0) { alert('单价必须 > 0'); return; }
+    if (!isNew) {
+        const i = parseInt(idx);
+        payload.id = data.rules[i].id;
+    }
+    const r = await fetch(`/api/unit-prices/${PROJECT_ID}/rules`,
+        {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+    const res = await r.json();
+    if (res.error) { alert('保存失败：' + res.error); return; }
+    if (isNew) {
+        const i = parseInt(String(idx).replace('new',''));
+        pendingNew.splice(i, 1);
+    }
+    await loadData();
+}
+
+async function deleteRule(rid) {
+    if (!confirm('确认删除该规则？')) return;
+    await fetch(`/api/unit-prices/${PROJECT_ID}/rules/${rid}`, {method:'DELETE'});
+    await loadData();
+}
+
+['dim1_col','dim2_col','dim3_col'].forEach(id =>
+    document.getElementById(id).addEventListener('input', renderRules));
+
+loadData();
+</script>
+{% endblock %}

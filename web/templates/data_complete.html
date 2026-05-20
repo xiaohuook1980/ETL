@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}数据补全 - 小鱼风控系统{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="/" class="btn btn-outline-secondary btn-sm me-3">&larr; 返回</a>
+    <h4 class="mb-0">数据补全</h4>
+    <button class="btn btn-outline-primary btn-sm ms-auto" id="btnRefresh">刷新</button>
+</div>
+
+<ul class="nav nav-tabs" id="dimTabs">
+    <li class="nav-item">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabCtrl">实控人</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabComp">企业</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabProj">项目</button>
+    </li>
+</ul>
+
+<div class="tab-content mt-3">
+    <!-- 实控人 -->
+    <div class="tab-pane fade show active" id="tabCtrl">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="tblCtrl">
+                <thead class="table-light">
+                    <tr>
+                        <th>实控人</th>
+                        <th>关联企业</th>
+                        <th>征信</th>
+                        <th>身份证</th>
+                        <th>资产</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 企业 -->
+    <div class="tab-pane fade" id="tabComp">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="tblComp">
+                <thead class="table-light">
+                    <tr>
+                        <th>企业</th>
+                        <th>实控人</th>
+                        <th>征信</th>
+                        <th>银行流水</th>
+                        <th>发票</th>
+                        <th>中登</th>
+                        <th>营业执照</th>
+                        <th>劳务派遣证</th>
+                        <th>人力资源证</th>
+                        <th>项目数</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 项目 -->
+    <div class="tab-pane fade" id="tabProj">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="tblProj">
+                <thead class="table-light">
+                    <tr>
+                        <th>企业</th>
+                        <th>项目</th>
+                        <th>项目信息</th>
+                        <th>考勤账单</th>
+                        <th>发薪工资表</th>
+                        <th>出款管理</th>
+                        <th>保险</th>
+                        <th>合同</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="text-center py-5 d-none" id="loading">
+    <div class="spinner-border text-primary"></div>
+    <p class="mt-2 text-muted">加载中...</p>
+</div>
+
+<!-- 隐藏的文件上传input -->
+<input type="file" id="hiddenFileInput" multiple style="display:none">
+
+<!-- 上传成功提示 -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:9999">
+    <div id="uploadToast" class="toast align-items-center text-bg-success" role="alert">
+        <div class="d-flex">
+            <div class="toast-body" id="uploadToastMsg">上传成功</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 当前上传目标
+var uploadTarget = {};
+
+function badge(ok, dim, name, category, project) {
+    if (ok) {
+        return '<span class="badge bg-success">有</span>';
+    }
+    // 缺 → 可点击上传
+    var attrs = 'data-dim="' + dim + '" data-name="' + name + '" data-category="' + category + '"';
+    if (project) attrs += ' data-project="' + project + '"';
+    return '<span class="badge bg-danger upload-btn" style="cursor:pointer" ' + attrs + '>缺 +</span>';
+}
+
+// 点击"缺 +"触发文件选择
+$(document).on('click', '.upload-btn', function() {
+    uploadTarget = {
+        dim: $(this).data('dim'),
+        name: $(this).data('name'),
+        category: $(this).data('category'),
+        project: $(this).data('project') || ''
+    };
+    $('#hiddenFileInput').val('').click();
+});
+
+// 文件选择后上传
+$('#hiddenFileInput').on('change', function() {
+    var files = this.files;
+    if (!files.length) return;
+
+    var fd = new FormData();
+    fd.append('dim', uploadTarget.dim);
+    fd.append('name', uploadTarget.name);
+    fd.append('category', uploadTarget.category);
+    fd.append('project', uploadTarget.project);
+    for (var i = 0; i < files.length; i++) {
+        fd.append('file', files[i]);
+    }
+
+    $.ajax({
+        url: '/api/data/upload',
+        type: 'POST',
+        data: fd,
+        processData: false,
+        contentType: false,
+        success: function(res) {
+            var msg = '已上传 ' + res.uploaded.length + ' 个文件到 ' + uploadTarget.category;
+            $('#uploadToastMsg').text(msg);
+            var toast = new bootstrap.Toast($('#uploadToast'));
+            toast.show();
+            loadData();
+        },
+        error: function(xhr) {
+            var err = xhr.responseJSON ? xhr.responseJSON.error : '上传失败';
+            alert(err);
+        }
+    });
+});
+
+function loadData() {
+    $('#loading').removeClass('d-none');
+    $('.tab-content').addClass('d-none');
+
+    $.getJSON('/api/data/completeness', function(res) {
+        // 实控人
+        var html = '';
+        res.controllers.forEach(function(c) {
+            var cls = c.missing_folder ? ' class="table-warning"' : '';
+            html += '<tr' + cls + '>';
+            html += '<td>' + c.name + (c.missing_folder ? ' <small class="text-danger">(无文件夹)</small>' : '') + '</td>';
+            html += '<td>' + (c.companies.length ? c.companies.join('、') : '<span class="text-muted">-</span>') + '</td>';
+            html += '<td>' + badge(c.data['征信'], 'controller', c.name, '征信') + '</td>';
+            html += '<td>' + badge(c.data['身份证'], 'controller', c.name, '身份证') + '</td>';
+            html += '<td>' + badge(c.data['资产'], 'controller', c.name, '资产') + '</td>';
+            html += '</tr>';
+        });
+        $('#tblCtrl tbody').html(html);
+
+        // 企业
+        html = '';
+        res.companies.forEach(function(c) {
+            html += '<tr>';
+            html += '<td><strong>' + c.name + '</strong></td>';
+            html += '<td>' + (c.controller || '<span class="text-muted">-</span>') + '</td>';
+            html += '<td>' + badge(c.data['征信'], 'company', c.name, '征信') + '</td>';
+            html += '<td>' + badge(c.data['银行流水'], 'company', c.name, '银行流水') + '</td>';
+            html += '<td>' + badge(c.data['发票'], 'company', c.name, '发票') + '</td>';
+            html += '<td>' + badge(c.data['中登'], 'company', c.name, '中登') + '</td>';
+            html += '<td>' + badge(c.data['营业执照'], 'company', c.name, '营业执照') + '</td>';
+            html += '<td>' + badge(c.data['劳务派遣证'], 'company', c.name, '劳务派遣证') + '</td>';
+            html += '<td>' + badge(c.data['人力资源证'], 'company', c.name, '人力资源证') + '</td>';
+            html += '<td>' + c.project_count + '</td>';
+            html += '</tr>';
+        });
+        $('#tblComp tbody').html(html);
+
+        // 项目
+        html = '';
+        var lastComp = '';
+        res.projects.forEach(function(p) {
+            html += '<tr>';
+            if (p.company !== lastComp) {
+                html += '<td><strong>' + p.company + '</strong></td>';
+                lastComp = p.company;
+            } else {
+                html += '<td></td>';
+            }
+            html += '<td>' + p.project + '</td>';
+            html += '<td>' + badge(p.data['项目信息'], 'project', p.company, '项目信息', p.project) + '</td>';
+            html += '<td>' + badge(p.data['考勤账单'], 'project', p.company, '考勤账单', p.project) + '</td>';
+            html += '<td>' + badge(p.data['发薪工资表'], 'project', p.company, '发薪工资表', p.project) + '</td>';
+            html += '<td>' + badge(p.data['出款管理'], 'project', p.company, '出款管理', p.project) + '</td>';
+            html += '<td>' + badge(p.data['保险'], 'project', p.company, '保险', p.project) + '</td>';
+            html += '<td>' + badge(p.data['合同'], 'project', p.company, '合同', p.project) + '</td>';
+            html += '</tr>';
+        });
+        $('#tblProj tbody').html(html);
+
+        $('#loading').addClass('d-none');
+        $('.tab-content').removeClass('d-none');
+    });
+}
+
+$('#btnRefresh').click(loadData);
+loadData();
+</script>
+{% endblock %}

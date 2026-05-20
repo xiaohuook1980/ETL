@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Mock · 普通模式 · 出款申请</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+    body { background-color: #f5f6fa; }
+    .card { border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card-header { background-color: #fff; border-bottom: 1px solid #eee; }
+    .data-card { border:1px solid #e3e6f0; border-radius:6px; padding:10px 12px; height:100%; }
+    .data-card .lbl { font-size:12px; color:#888; }
+    .data-card .val { font-size:14px; }
+    .data-card.ok { border-left:3px solid #28a745; }
+    .data-card.warn { border-left:3px solid #ffc107; }
+    .data-card.miss { border-left:3px solid #dc3545; opacity:0.7; }
+    .mock-banner { background:#fff3cd; color:#664d03; padding:6px 12px; font-size:12px; text-align:center; border-bottom:1px solid #ffe69c; }
+    .card-actions { display:flex; gap:6px; align-items:center; }
+</style>
+</head>
+<body>
+
+<div class="mock-banner">⚠️ Mock 页面（普通模式 · 全量假数据）— 用于讨论右侧设计</div>
+
+<nav class="navbar navbar-dark bg-dark">
+    <div class="container"><a class="navbar-brand" href="#">小鱼风控系统</a></div>
+</nav>
+
+<div class="container mt-4">
+<div class="row mt-3">
+
+    <!-- 左侧（保持原样，不动） -->
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">出款申请</h5></div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">劳务公司</label>
+                    <select class="form-select"><option>云优聘</option></select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">项目</label>
+                    <select class="form-select"><option>康丽达</option></select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">业务月份</label>
+                    <select class="form-select"><option>2026-04</option></select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">申请日期</label>
+                    <input type="date" class="form-control" value="2026-05-05">
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary flex-fill">普通核对</button>
+                    <button class="btn btn-warning flex-fill">预付核对</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧（普通模式 mock） -->
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">数据核对 <span class="badge bg-primary ms-2">普通模式</span></h5>
+                <span class="text-muted small">业务月 2026-04 · 申请日 2026-05-05</span>
+            </div>
+            <div class="card-body">
+
+                <!-- 4 类数据卡片（每个右上角加"采用"勾选） -->
+                <div class="row g-2 mb-3">
+
+                    <!-- 考勤：采用 + 设置 -->
+                    <div class="col-6">
+                        <div class="data-card ok">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">考勤</span>
+                                <div class="card-actions">
+                                    <a href="kaoqin_settings.html" class="btn btn-sm btn-outline-secondary py-0 px-2">⚙ 设置</a>
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="checkbox" id="chk-att" checked>
+                                        <label class="form-check-label small" for="chk-att">采用</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-1 small">
+                                <div><span class="lbl">最新日期</span> <span class="val">2026-04-30</span></div>
+                                <div><span class="lbl">行数</span> <span class="val">1,284</span> <span class="text-muted">（已排除 132 条）</span></div>
+                                <div><span class="lbl">月覆盖</span> <span class="val">04-01 ~ 04-30（30 天）</span></div>
+                                <div><span class="lbl">总工时</span> <span class="val">12,840 h</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 账单：采用 -->
+                    <div class="col-6">
+                        <div class="data-card ok">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">账单</span>
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="checkbox" id="chk-bill" checked>
+                                    <label class="form-check-label small" for="chk-bill">采用</label>
+                                </div>
+                            </div>
+                            <div class="mt-1 small">
+                                <div><span class="lbl">业务周期</span> <span class="val">2026-04（自然月）</span></div>
+                                <div><span class="lbl">出账日</span> <span class="val">2026-05-03</span></div>
+                                <div><span class="lbl">账单金额</span> <span class="val">¥ 1,856,200</span></div>
+                                <div><span class="lbl">账单人数</span> <span class="val">213 人</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 发薪流水：采用 -->
+                    <div class="col-6">
+                        <div class="data-card warn">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">发薪流水</span>
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="checkbox" id="chk-pay" checked>
+                                    <label class="form-check-label small" for="chk-pay">采用</label>
+                                </div>
+                            </div>
+                            <div class="mt-1 small">
+                                <div><span class="lbl">最新日期</span> <span class="val">2026-05-04</span></div>
+                                <div><span class="lbl">业务月覆盖</span> <span class="val">04-15 ~ 05-04（已发 198/213 人）</span></div>
+                                <div><span class="lbl">本月发薪</span> <span class="val">¥ 1,420,500（76.5%）</span></div>
+                                <div class="text-warning">⚠ 04 月有 15 人未匹配发薪</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 工资表：采用 -->
+                    <div class="col-6">
+                        <div class="data-card ok">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">工资表</span>
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="checkbox" id="chk-wage" checked>
+                                    <label class="form-check-label small" for="chk-wage">采用</label>
+                                </div>
+                            </div>
+                            <div class="mt-1 small">
+                                <div><span class="lbl">业务月</span> <span class="val">2026-04</span></div>
+                                <div><span class="lbl">收到日</span> <span class="val">2026-05-04</span></div>
+                                <div><span class="lbl">应发合计</span> <span class="val">¥ 1,792,300</span></div>
+                                <div><span class="lbl">人数</span> <span class="val">213 人</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 参数区（普通模式） -->
+                <div class="border rounded p-3 mb-3 bg-light">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label small mb-1">出款比例</label>
+                            <input type="number" class="form-control form-control-sm" value="0.8">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small mb-1">代收阈值 (元)</label>
+                            <input type="number" class="form-control form-control-sm" value="2000">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1">客户申请金额 (元)
+                                <span class="text-muted small">不填 = 顶格</span>
+                            </label>
+                            <input type="number" class="form-control form-control-sm" placeholder="不填取算法值；填了取 min(算法, 申请)">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 拉取按钮（仅保留 考勤账单发薪工资表） -->
+                <div class="d-flex gap-2 mb-3">
+                    <button class="btn btn-outline-primary flex-fill">拉取最新数据（考勤 / 账单 / 发薪 / 工资表）</button>
+                </div>
+
+                <!-- 开始审核 -->
+                <div class="text-end">
+                    <button class="btn btn-success btn-lg px-4">开始审核</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+</div>
+
+</body>
+</html>

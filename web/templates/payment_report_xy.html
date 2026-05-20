@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}出款计算结果（小鱼风控）{% endblock %}
+
+{% block content %}
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="d-flex align-items-center mb-3">
+            <a href="/payment/new" class="btn btn-outline-secondary btn-sm">&larr; 返回出款申请</a>
+            <h5 class="mb-0 ms-3">出款计算结果 <span class="text-muted small">小鱼风控</span></h5>
+            <div class="ms-auto">
+                <button id="btn-export-detail" class="btn btn-outline-success btn-sm">⬇ 导出数据明细</button>
+            </div>
+        </div>
+
+        <!-- 结论卡（紧凑单行 header） -->
+        <div class="card mb-2">
+            <div class="card-body py-2">
+                <div class="d-flex align-items-center flex-wrap gap-3 small">
+                    <span><strong class="text-primary fs-5" id="final-amount">--</strong> <span class="text-muted">最终出款</span></span>
+                    <span class="text-muted">|</span>
+                    <span class="badge" id="info-mode">--</span>
+                    <span><span class="text-muted">公司</span> <span id="info-company">--</span></span>
+                    <span><span class="text-muted">项目</span> <span id="info-project">--</span></span>
+                    <span><span class="text-muted">业务月</span> <span id="info-month">--</span></span>
+                    <span><span class="text-muted">申请日</span> <span id="info-date">--</span></span>
+                    <span><span class="text-muted">出款比例</span> <span id="info-profit">--</span></span>
+                    <span><span class="text-muted">单价</span> <span id="info-price">--</span></span>
+                    <span><span class="text-muted">代收阈值</span> <span id="info-daishou">--</span></span>
+                    <span class="badge bg-secondary" id="info-sources">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 出款计算明细（普通模式） -->
+        <div class="card mb-3" id="detail-normal" style="display:none;">
+            <div class="card-body p-0">
+                <table class="table table-sm table-bordered mb-0" id="table-normal">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:40px">#</th>
+                            <th class="text-nowrap" style="width:1%">输出项</th>
+                            <th style="width:140px" class="text-end">金额</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 出款计算明细（预付模式） -->
+        <div class="card mb-3" id="detail-prepay" style="display:none;">
+            <div class="card-body p-0">
+                <table class="table table-sm table-bordered mb-0" id="table-prepay">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:40px">#</th>
+                            <th class="text-nowrap" style="width:1%">输出项</th>
+                            <th style="width:140px" class="text-end">金额</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(function() {
+    // 普通模式 17 项 schema（key 对应 etl/calc/payment_summary 输出）
+    function row(n, k, label) { return {n:n, k:k, label:label, desc_key: k + '_说明'}; }
+    var NORMAL_ROWS = [
+        row(1,  '#1_甲方账单',          '甲方账单金额'),
+        row(2,  '#2_账单出款上限',      '账单:出款上限'),
+        row(3,  '#3_发薪流水金额',      '发薪流水:金额'),
+        row(4,  '#4_已直发',            '发薪流水:已直发'),
+        row(5,  '#5_发薪出款上限',      '发薪流水:出款上限'),
+        row(6,  '#6_工资表结算工资',    '工资表:结算工资'),
+        row(7,  '#7_本月匹配率',        '工资表:本月匹配率'),
+        row(8,  '#8_工资表匹配金额',    '工资表:匹配金额'),
+        row(9,  '#9_工资表预计直发',    '工资表:预计直发'),
+        row(10, '#10_上月匹配率',       '工资表:上月匹配率'),
+        row(11, '#11_工资表出款上限',   '工资表:出款上限'),
+        row(12, '#12_本周期已垫付',     '本业务周期已垫付'),
+        row(13, '#13_本项目出款金额',   '本项目出款金额'),
+        row(14, '#14_代收超额扣减',     '代收超额扣减'),
+        row(15, '#15_授信余额',         '授信余额'),
+        row(16, '#16_客户申请金额',     '客户申请金额'),
+        Object.assign(row(17, '#17_最终出款', '最终出款'), {highlight:true}),
+    ];
+
+    // 预付模式 13 项 schema
+    var PREPAY_ROWS = [
+        row(1,  '#1_考勤账单金额',     '考勤账单金额'),
+        row(2,  '#2_预付考勤估计',     '预付考勤估计'),
+        row(3,  '#3_合计',             '合计'),
+        row(4,  '#4_考勤出款上限',     '考勤出款上限'),
+        row(5,  '#5_已发薪金额',       '已发薪金额'),
+        row(6,  '#6_已直发',           '已直发（验证）'),
+        row(7,  '#7_已垫付',           '已垫付'),
+        row(8,  '#8_账户结余',         '账户结余'),
+        row(9,  '#9_项目代收超额',     '项目代收超额'),
+        row(10, '#10_出款金额',        '出款金额'),
+        row(11, '#11_代收超额扣减',    '代收超额扣减(实控人)'),
+        row(12, '#12_授信余额',        '授信余额'),
+        Object.assign(row(13, '#13_最终出款', '最终出款'), {highlight:true}),
+    ];
+
+    var resultStr = sessionStorage.getItem('analyzeResult');
+    var paramsStr = sessionStorage.getItem('analyzeParams');
+    var result = resultStr ? JSON.parse(resultStr) : {};
+    var params = paramsStr ? JSON.parse(paramsStr) : {};
+    var mode = params.mode || 'normal';
+    var detail = result.detail || {};   // 后端返回的逐项数值 + 说明
+    var metrics = result.metrics || {};
+
+    // 头部基本信息
+    $('#info-company').text(params.company || '--');
+    $('#info-project').text(params.project || '--');
+    $('#info-month').text(params.month || '--');
+    $('#info-date').text(params.date || '--');
+    $('#info-mode').text(mode === 'prepay' ? '预付' : '普通').addClass(mode === 'prepay' ? 'bg-warning text-dark' : 'bg-primary');
+    $('#info-profit').text(params.profit_ratio != null ? params.profit_ratio : '0.8');
+    $('#info-price').text(detail['_unit_price_label']
+        || (params.unit_price != null ? params.unit_price + (params.unit_price_unit ? ' ' + params.unit_price_unit : '') : '--'));
+    $('#info-daishou').text(params.daishou_threshold != null ? params.daishou_threshold : '2000');
+    var checks = params.checks || {};
+    var sources = [];
+    if (checks.payroll !== false) sources.push('发薪流水');
+    if (checks.wage !== false) sources.push('工资表');
+    $('#info-sources').text(sources.length === 2 ? '工资表 + 发薪流水' : (sources[0] || '无'));
+
+    var finalAmt = (mode === 'prepay' ? detail['#13_最终出款'] : detail['#17_最终出款']);
+    $('#final-amount').text(finalAmt != null ? formatMoney(finalAmt) : '--');
+
+    // 渲染明细
+    var rows = mode === 'prepay' ? PREPAY_ROWS : NORMAL_ROWS;
+    var $tbody = $(mode === 'prepay' ? '#table-prepay tbody' : '#table-normal tbody');
+    $(mode === 'prepay' ? '#detail-prepay' : '#detail-normal').show();
+
+    rows.forEach(function(r) {
+        var amt = detail[r.k];
+        var amtTxt;
+        if (amt == null) {
+            amtTxt = '<span class="text-muted">--</span>';
+        } else if (typeof amt === 'string' && amt.endsWith('%')) {
+            amtTxt = amt;
+        } else {
+            amtTxt = formatMoney(amt);
+        }
+        var desc = detail[r.desc_key] || '<span class="text-muted">--</span>';
+        var cls = r.highlight ? ' class="table-success fw-bold"' : '';
+        var label = r.label || r.k;
+        // 特殊：#1 普通模式 来源=考勤×单价 时改 label
+        if (mode !== 'prepay' && r.k === '#1_甲方账单' &&
+            detail['#1_来源'] && /attendance|考勤\s*×\s*单价/i.test(detail['#1_来源'])) {
+            label = '考勤预估金额';
+        }
+        $tbody.append(
+            '<tr' + cls + '><td>' + r.n + '</td><td class="text-nowrap">' + label + '</td><td class="text-end">' + amtTxt + '</td><td class="small">' + desc + '</td></tr>'
+        );
+    });
+
+    function formatMoney(v) {
+        if (v == null) return '--';
+        var n = typeof v === 'number' ? v : parseFloat(v);
+        if (isNaN(n)) return v;
+        return Math.round(n).toLocaleString('zh-CN');
+    }
+
+    // 导出数据明细
+    $('#btn-export-detail').on('click', function () {
+        var pid = result.project_id || params.project_id;
+        var month = params.month || '';
+        if (!pid) { alert('缺少 project_id，请重新发起计算'); return; }
+        if (!month) { alert('缺少业务月'); return; }
+        var url = '/api/payment/export-detail?project_id=' + encodeURIComponent(pid) +
+                  '&month=' + encodeURIComponent(month);
+        if (params.date) url += '&date=' + encodeURIComponent(params.date);
+        window.location.href = url;
+    });
+});
+</script>
+{% endblock %}

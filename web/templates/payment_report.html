@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+
+{% block title %}审核结果{% endblock %}
+
+{% block content %}
+<div class="row mt-3">
+    <!-- 左侧：导航 -->
+    <div class="col-md-3">
+        <a href="/payment/new" class="btn btn-outline-secondary btn-sm mb-3">&larr; 返回出款申请</a>
+
+        <!-- 小鱼风控导航 -->
+        <div class="list-group" id="nav-xiaoyu" style="display:none;">
+            <a href="#" class="list-group-item list-group-item-action active" data-tab="conclusion">评审结论</a>
+            <a href="#" class="list-group-item list-group-item-action" data-tab="warning">预警</a>
+            <a href="#" class="list-group-item list-group-item-action" data-tab="process">评审过程</a>
+            <a href="#" class="list-group-item list-group-item-action" data-tab="observation">观察</a>
+        </div>
+
+        <!-- 八维分析导航 -->
+        <div id="nav-bawei" style="display:none;">
+            <div class="list-group mb-2">
+                <a href="#" class="list-group-item list-group-item-action active" data-tab="bw-gate">准入门槛</a>
+                <a href="#" class="list-group-item list-group-item-action" data-tab="bw-scoring">量化评分</a>
+                <a href="#" class="list-group-item list-group-item-action" data-tab="bw-monitor">动态监控</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧：内容 -->
+    <div class="col-md-9">
+
+        <!-- ============ 小鱼风控引擎内容 ============ -->
+        <div id="engine-xiaoyu" style="display:none;">
+            <div class="tab-panel" id="tab-conclusion">
+                <div class="card">
+                    <div class="card-header"><h5 class="mb-0">评审结论</h5></div>
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <span class="fw-bold me-2">结论：</span>
+                            <span class="badge fs-6" id="conclusion-result">--</span>
+                        </div>
+                        <div id="conclusion-reasons" style="display:none;">
+                            <span class="fw-bold">原因：</span>
+                            <ul class="mb-0 mt-1" id="reason-list"></ul>
+                        </div>
+
+                        <div class="d-flex align-items-center mt-4 mb-3">
+                            <h6 class="fw-bold mb-0 me-3">关键指标</h6>
+                            <label class="btn btn-outline-primary btn-sm mb-0">
+                                上传人工数据
+                                <input type="file" id="upload-manual" accept=".xlsx,.xls" style="display:none;">
+                            </label>
+                            <span class="text-muted small ms-2" id="upload-status"></span>
+                        </div>
+                        <table class="table table-bordered table-sm w-auto" id="metrics-table">
+                            <thead>
+                                <tr><th>指标</th><th class="text-end">系统数据</th><th class="text-end">人工数据</th><th class="text-center">比对结果</th></tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+
+                        <div class="d-flex align-items-center mt-4">
+                            <span class="fw-bold me-3">人工确认：</span>
+                            <button class="btn btn-success me-2" id="btn-confirm-pass">通过</button>
+                            <button class="btn btn-danger" id="btn-confirm-fail">不通过</button>
+                            <span class="ms-3" id="confirm-status"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-panel" id="tab-warning" style="display:none;">
+                <div class="card">
+                    <div class="card-header"><h5 class="mb-0">预警</h5></div>
+                    <div class="card-body" id="warning-body"><p class="text-muted">待实现</p></div>
+                </div>
+            </div>
+            <div class="tab-panel" id="tab-process" style="display:none;">
+                <div class="card">
+                    <div class="card-header"><h5 class="mb-0">评审过程</h5></div>
+                    <div class="card-body" id="process-body"><p class="text-muted">待实现</p></div>
+                </div>
+            </div>
+            <div class="tab-panel" id="tab-observation" style="display:none;">
+                <div class="card">
+                    <div class="card-header"><h5 class="mb-0">观察</h5></div>
+                    <div class="card-body"><p class="text-muted">待实现</p></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ 八维分析引擎内容 ============ -->
+        <div id="engine-bawei" style="display:none;">
+
+            <!-- 准入门槛 -->
+            <div class="tab-panel" id="tab-bw-gate">
+                <div class="card">
+                    <div class="card-header d-flex align-items-center">
+                        <h5 class="mb-0 me-3">第一层：准入门槛</h5>
+                        <span class="badge fs-6" id="gate-result">--</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">一票否决制：任何一道不通过，直接拒绝，不进入评分环节</p>
+                        <table class="table table-bordered table-sm" id="gate-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px">#</th>
+                                    <th>检查项</th>
+                                    <th style="width:150px">数据值</th>
+                                    <th style="width:100px" class="text-center">结果</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                        <div id="gate-blocked-reasons" style="display:none;" class="mt-3">
+                            <span class="fw-bold text-danger">否决原因：</span>
+                            <ul class="mb-0 mt-1 text-danger" id="gate-blocked-list"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 量化评分 -->
+            <div class="tab-panel" id="tab-bw-scoring" style="display:none;">
+                <div class="card mb-3">
+                    <div class="card-header"><h5 class="mb-0">第二层：六维量化评分</h5></div>
+                    <div class="card-body">
+                        <!-- 总分卡片 -->
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <div class="border rounded p-3 text-center">
+                                    <div class="text-muted small">综合评分</div>
+                                    <div class="fs-2 fw-bold" id="score-total">--</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border rounded p-3 text-center">
+                                    <div class="text-muted small">风险等级</div>
+                                    <div class="fs-4 fw-bold"><span class="badge" id="score-risk-level">--</span></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border rounded p-3 text-center">
+                                    <div class="text-muted small">建议融资比例</div>
+                                    <div class="fs-4 fw-bold" id="score-ratio">--</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border rounded p-3 text-center">
+                                    <div class="text-muted small">数据完整度</div>
+                                    <div class="fs-4 fw-bold" id="score-coverage">--</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="text-muted small">公式：总分 = A&times;20% + B&times;25% + C&times;15% + D&times;15% + E&times;15% + F&times;10%</p>
+
+                        <!-- 维度详情 -->
+                        <div id="dim-panels"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 动态监控 -->
+            <div class="tab-panel" id="tab-bw-monitor" style="display:none;">
+                <div class="card">
+                    <div class="card-header"><h5 class="mb-0">第三层：动态监控</h5></div>
+                    <div class="card-body"><p class="text-muted">功能开发中</p></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(function() {
+    var resultStr = sessionStorage.getItem('analyzeResult');
+    var paramsStr = sessionStorage.getItem('analyzeParams');
+    if (!resultStr) {
+        $('#engine-xiaoyu').show();
+        $('#nav-xiaoyu').show();
+        $('#conclusion-result').text('无数据').addClass('bg-secondary');
+        return;
+    }
+
+    var result = JSON.parse(resultStr);
+    var params = paramsStr ? JSON.parse(paramsStr) : {};
+    var engine = result.engine || '小鱼风控';
+
+    if (engine === '八维分析') {
+        renderBawei(result);
+    } else {
+        renderXiaoyu(result);
+    }
+
+    // ============ Tab切换（通用） ============
+    $(document).on('click', '.list-group-item', function(e) {
+        e.preventDefault();
+        var nav = $(this).closest('.list-group');
+        nav.find('a').removeClass('active');
+        $(this).addClass('active');
+        var container = $(this).closest('#nav-xiaoyu').length ? '#engine-xiaoyu' : '#engine-bawei';
+        $(container + ' .tab-panel').hide();
+        $('#tab-' + $(this).data('tab')).show();
+    });
+
+    // ============ 小鱼风控渲染 ============
+    function renderXiaoyu(result) {
+        $('#engine-xiaoyu').show();
+        $('#nav-xiaoyu').show();
+
+        var passed = result.conclusion === '通过';
+        $('#conclusion-result').text(result.conclusion).addClass(passed ? 'bg-success' : 'bg-danger');
+
+        if (result.reasons && result.reasons.length > 0) {
+            var list = $('#reason-list');
+            result.reasons.forEach(function(r) { list.append('<li>' + r + '</li>'); });
+            $('#conclusion-reasons').show();
+        }
+
+        // 关键指标
+        var metrics = result.metrics || {};
+        var metricOrder = [
+            {key: '核定本次融资额', highlight: true},
+            {key: '发薪人员匹配率'},
+            {key: '考勤预计', format: 'money'},
+            {key: '考勤80%', format: 'money'},
+            {key: '已发薪金额', format: 'money'},
+            {key: '直发金额', format: 'money'},
+            {key: '本期已垫付', format: 'money'},
+            {key: '当前可用额度', format: 'money'},
+            {key: '垫付比例'},
+            {key: '直发比例'},
+            {key: '预计融资日期'},
+            {key: '预计回款日期'},
+        ];
+
+        var manualData = {};
+
+        function formatVal(val, format) {
+            if (val === undefined || val === null) return '--';
+            if (format === 'money' && typeof val === 'number')
+                return val.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            return val;
+        }
+
+        function compareValues(sysVal, manualVal) {
+            if (manualVal === undefined || manualVal === null || manualVal === '') return '';
+            if (sysVal === undefined || sysVal === null) return '';
+            var s = typeof sysVal === 'number' ? sysVal : parseFloat(String(sysVal).replace(/[,%]/g, ''));
+            var m = typeof manualVal === 'number' ? manualVal : parseFloat(String(manualVal).replace(/[,%]/g, ''));
+            if (isNaN(s) || isNaN(m))
+                return String(sysVal) === String(manualVal) ? '<span class="text-success">一致</span>' : '<span class="text-danger">不一致</span>';
+            if (Math.abs(s - m) < 0.01) return '<span class="text-success">一致</span>';
+            var diff = m - s, pct = s !== 0 ? ((diff / Math.abs(s)) * 100).toFixed(1) : '--';
+            var sign = diff > 0 ? '+' : '';
+            return '<span class="text-danger">' + sign + diff.toLocaleString('zh-CN', {maximumFractionDigits: 2}) + ' (' + sign + pct + '%)</span>';
+        }
+
+        function renderMetrics() {
+            var tbody = $('#metrics-table tbody').empty();
+            metricOrder.forEach(function(item) {
+                var val = metrics[item.key];
+                if (val === undefined || val === null) return;
+                var displayVal = formatVal(val, item.format);
+                var manualVal = manualData[item.key];
+                var manualDisplay = manualVal !== undefined ? formatVal(manualVal, item.format) : '';
+                var compare = compareValues(val, manualVal);
+                var cls = item.highlight ? ' class="table-success fw-bold"' : '';
+                tbody.append('<tr' + cls + '><td>' + item.key + '</td><td class="text-end">' + displayVal + '</td><td class="text-end">' + manualDisplay + '</td><td class="text-center">' + compare + '</td></tr>');
+            });
+        }
+        renderMetrics();
+
+        $('#upload-manual').on('change', function() {
+            var file = this.files[0]; if (!file) return;
+            var formData = new FormData(); formData.append('file', file);
+            $('#upload-status').text('上传中...');
+            $.ajax({
+                url: '/api/upload-manual', method: 'POST', data: formData, processData: false, contentType: false,
+                success: function(data) { manualData = data.data || {}; renderMetrics(); $('#upload-status').text('已加载: ' + file.name); },
+                error: function() { $('#upload-status').text('上传失败'); }
+            });
+        });
+
+        $('#btn-confirm-pass').on('click', function() {
+            $(this).addClass('active').prop('disabled', true);
+            $('#btn-confirm-fail').removeClass('active').prop('disabled', true);
+            $('#confirm-status').html('<span class="text-success fw-bold">已确认：通过</span>');
+        });
+        $('#btn-confirm-fail').on('click', function() {
+            $(this).addClass('active').prop('disabled', true);
+            $('#btn-confirm-pass').removeClass('active').prop('disabled', true);
+            $('#confirm-status').html('<span class="text-danger fw-bold">已确认：不通过</span>');
+        });
+
+        if (result.checks && result.checks.length > 0) {
+            var html = '<h6 class="fw-bold mb-2">前置规则检查</h6>';
+            html += '<table class="table table-bordered table-sm w-auto"><thead><tr><th>规则</th><th>内容</th><th>结果</th></tr></thead><tbody>';
+            result.checks.forEach(function(c) {
+                var color = '';
+                if (c['结果'] === '不通过') color = ' class="table-danger"';
+                else if (c['结果'] === '风险提示') color = ' class="table-warning"';
+                html += '<tr' + color + '><td>' + c['规则'] + '</td><td>' + (c['内容'] || '') + '</td><td>' + (c['结果'] || '') + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            $('#process-body').html(html);
+        }
+    }
+
+    // ============ 八维分析渲染 ============
+    function renderBawei(result) {
+        $('#engine-bawei').show();
+        $('#nav-bawei').show();
+
+        // 准入门槛
+        var gatePass = result.gate_pass;
+        var badge = $('#gate-result');
+        if (gatePass) {
+            badge.text('准入通过').addClass('bg-success');
+        } else {
+            badge.text('准入不通过').addClass('bg-danger');
+        }
+
+        var tbody = $('#gate-table tbody');
+        (result.gate_checks || []).forEach(function(c) {
+            var resultBadge = '';
+            if (c.result === '通过') resultBadge = '<span class="badge bg-success">通过</span>';
+            else if (c.result === '否决') resultBadge = '<span class="badge bg-danger">否决</span>';
+            else resultBadge = '<span class="badge bg-secondary">无数据</span>';
+
+            var rowCls = c.result === '否决' ? ' class="table-danger"' : '';
+            var valText = c.value !== null && c.value !== undefined ? c.value : '<span class="text-muted">--</span>';
+            tbody.append('<tr' + rowCls + '><td>' + c.id + '</td><td>' + c.name + '</td><td>' + valText + '</td><td class="text-center">' + resultBadge + '</td></tr>');
+        });
+
+        if (result.gate_blocked && result.gate_blocked.length > 0) {
+            var list = $('#gate-blocked-list');
+            result.gate_blocked.forEach(function(r) { list.append('<li>' + r + '</li>'); });
+            $('#gate-blocked-reasons').show();
+        }
+
+        // 量化评分
+        var scoring = result.scoring;
+        if (!scoring) return;
+
+        // 总分
+        if (scoring.final_score !== null) {
+            $('#score-total').text(scoring.final_score + '分');
+        } else {
+            $('#score-total').text('--').addClass('text-muted');
+        }
+
+        // 风险等级
+        if (scoring.risk_level) {
+            $('#score-risk-level').text(scoring.risk_level).addClass(scoring.risk_color);
+        }
+
+        // 融资比例
+        if (scoring.finance_ratio !== null && scoring.finance_ratio !== undefined) {
+            $('#score-ratio').text((scoring.finance_ratio * 100) + '%');
+        }
+
+        // 数据完整度
+        var totalInd = 0, dataInd = 0;
+        (scoring.dimensions || []).forEach(function(d) {
+            totalInd += d.total_count;
+            dataInd += d.data_count;
+        });
+        $('#score-coverage').text(dataInd + '/' + totalInd);
+
+        // 维度面板
+        var panels = $('#dim-panels');
+        (scoring.dimensions || []).forEach(function(dim) {
+            var dimScore = dim.score !== null ? dim.score.toFixed(1) : '--';
+            var maxScore = 100;
+            var weightPct = (dim.weight * 100) + '%';
+
+            var html = '<div class="card mb-2">';
+            html += '<div class="card-header d-flex justify-content-between align-items-center py-2" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#dim-' + dim.key + '">';
+            html += '<span><strong>' + dim.key + '. ' + dim.name + '</strong> <span class="text-muted small">权重' + weightPct + '</span></span>';
+            html += '<span>得分: <strong>' + dimScore + '</strong>/' + maxScore + ' <span class="text-muted small">数据' + dim.data_count + '/' + dim.total_count + '</span></span>';
+            html += '</div>';
+
+            html += '<div class="collapse" id="dim-' + dim.key + '">';
+            html += '<div class="card-body p-0">';
+            html += '<table class="table table-sm table-bordered mb-0">';
+            html += '<thead><tr><th style="width:160px">指标</th><th style="width:80px">子权重</th><th style="width:100px">数据值</th><th style="width:80px" class="text-center">得分</th><th>评分标准</th></tr></thead>';
+            html += '<tbody>';
+
+            dim.indicators.forEach(function(ind) {
+                var val = ind.value !== null && ind.value !== undefined ? ind.value : '<span class="text-muted">--</span>';
+                var score = ind.score !== null && ind.score !== undefined ? ind.score : '<span class="text-muted">--</span>';
+                var subW = (ind.sub_weight * 100).toFixed(0) + '%';
+                var bands = (ind.bands || []).map(function(b) { return b[0] + ':' + b[1]; }).join(' / ');
+                var rowCls = ind.score === null ? ' class="table-light"' : '';
+                html += '<tr' + rowCls + '><td>' + ind.name + '</td><td>' + subW + '</td><td>' + val + '</td><td class="text-center">' + score + '</td><td class="small text-muted">' + bands + '</td></tr>';
+            });
+
+            html += '</tbody></table></div></div></div>';
+            panels.append(html);
+        });
+    }
+});
+</script>
+{% endblock %}

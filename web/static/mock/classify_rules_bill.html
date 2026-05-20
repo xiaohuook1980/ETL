@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Mock · 数据识别（账单）</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+    body { background-color: #f8f9fa; }
+    .rule-card { box-shadow:none; border:1px solid #e9ecef; }
+    .mock-banner { background:#fff3cd; color:#664d03; padding:6px 12px; font-size:12px; text-align:center; border-bottom:1px solid #ffe69c; }
+    .empty-stub { color:#999; font-size:13px; padding:8px 12px; background:#fafafa; border-radius:4px; border:1px dashed #ddd; }
+    .rule-row { display:flex; gap:8px; align-items:center; padding:6px 0; border-bottom:1px dashed #eee; font-size:13px; }
+    .rule-row:last-child { border-bottom:0; }
+    .rule-row .lbl { color:#666; font-size:12px; min-width:50px; flex-shrink:0; }
+    .rule-row .grow { flex-grow:1; }
+    .step-nav { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+    .step-nav button { border:1px solid #dde2ea; background:#fff; padding:6px 14px; border-radius:4px; cursor:pointer; font-size:14px; }
+    .step-nav button.active { background:#4a6cf7; color:#fff; border-color:#4a6cf7; }
+    .pane { display:none; }
+    .pane.active { display:block; }
+    .schema-warn { background:#f8d7da; color:#842029; padding:4px 8px; border-radius:3px; font-size:12px; margin-left:6px; }
+</style>
+</head>
+<body>
+
+<div class="mock-banner">⚠️ 设计 mock（已弃用）— 真页面入口：项目设置 → 顶部 nav <strong>"数据识别配置 →"</strong>，或直接 <code>/projects/&lt;pid&gt;/classify/bill</code></div>
+
+<nav class="navbar navbar-dark bg-dark">
+    <div class="container"><a class="navbar-brand" href="#">小鱼风控系统</a></div>
+</nav>
+
+<div class="container mt-4">
+
+    <div class="d-flex align-items-center mb-3 mt-3">
+        <a href="project_settings.html" class="btn btn-outline-secondary btn-sm">&larr; 返回项目设置</a>
+        <h5 class="mb-0 ms-3">
+            数据识别 · <span class="text-primary">海洋王国</span>
+            <span class="text-muted small ms-2">梦寺达 / 线上 ID 2003404877239738370</span>
+        </h5>
+        <button class="btn btn-outline-primary btn-sm ms-auto">从其他项目复制规则</button>
+    </div>
+
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item"><a class="nav-link" href="classify_rules.html">考勤 attendance</a></li>
+        <li class="nav-item"><a class="nav-link active" href="classify_rules_bill.html">账单 bill</a></li>
+        <li class="nav-item"><a class="nav-link" href="classify_rules_wage_sheet.html">工资表 wage_sheet</a></li>
+        <li class="nav-item"><a class="nav-link" href="classify_rules_payroll.html">发薪流水 payroll</a></li>
+    </ul>
+
+    <div class="step-nav" id="step-nav">
+        <button class="active" data-pane="step1">文件类型归属</button>
+        <button data-pane="step2">企业归属</button>
+        <button data-pane="step3">项目归属</button>
+        <button data-pane="step4">列映射</button>
+    </div>
+
+    <!-- 文件类型归属 -->
+    <div class="pane active" id="step1">
+        <div class="card mb-3 rule-card">
+            <div class="card-header"><strong>文件类型归属</strong>
+                <span class="text-muted small ms-2">每条规则 = 特征列（表头必含）</span>
+            </div>
+            <div class="card-body">
+                <div class="rule-row">
+                    <input type="checkbox" class="form-check-input" checked>
+                    <span class="lbl">特征列</span>
+                    <input type="text" class="form-control form-control-sm" style="width:240px;" value="部门, 金额, 综合单价">
+                <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                </div>
+                <div class="rule-row">
+                    <input type="checkbox" class="form-check-input" checked>
+                    <span class="lbl">特征列</span>
+                    <input type="text" class="form-control form-control-sm" style="width:240px;" value="部门, 姓名, 实发工资, 夜班补贴">
+                <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                </div>
+                <div class="mt-2"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+
+                <div class="alert alert-warning mt-3 mb-0 small">
+                    <strong>schema 表达力问题（账单尤其多）</strong>：原代码新格式账单规则是
+                    <code>has(部门,姓名) AND has_any(实发工资,总工时工资) AND has_any(夜班补贴,奖励/补贴,奖励,罚款)</code>
+                    —— 含 <strong>2 组 OR</strong>。当前"特征列"只能写 AND（逗号分隔=都要在），表达不了"金额类列至少一个 + 奖惩类列至少一个"。
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 企业归属 -->
+    <div class="pane" id="step2">
+        <div class="card mb-3 rule-card">
+            <div class="card-header"><strong>企业归属</strong>
+                <span class="text-muted small ms-2">多劳务公司账单合并在同一份时启用</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="text-muted small mb-1">1. Sheet 名规则 · sheet 名含关键词 → 整页归本企业</div>
+                    <div class="rule-row">
+                        <input type="checkbox" class="form-check-input">
+                        <span class="lbl">关键词</span>
+                        <input type="text" class="form-control form-control-sm grow" placeholder="如 梦寺达, 长隆">
+                        <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                    </div>
+                    <div class="mt-1"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+                </div>
+                <div>
+                    <div class="text-muted small mb-1">2. 特征列规则 · 列名含关键词 → 该行归本企业</div>
+                    <div class="rule-row">
+                        <input type="checkbox" class="form-check-input">
+                        <span class="lbl">列名</span>
+                        <input type="text" class="form-control form-control-sm" style="width:150px;" placeholder="如 劳务公司, 供应商">
+                        <span class="lbl">关键词</span>
+                        <input type="text" class="form-control form-control-sm grow" placeholder="如 梦寺达">
+                        <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                    </div>
+                    <div class="mt-1"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 项目归属 -->
+    <div class="pane" id="step3">
+        <div class="card mb-3 rule-card">
+            <div class="card-header"><strong>项目归属</strong>
+                <span class="text-muted small ms-2">单文件含多项目时启用（如长隆系列：海洋/企鹅/横琴）</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="text-muted small mb-1">1. Sheet 名规则 · sheet 名含关键词 → 整页归本项目</div>
+                    <div class="rule-row">
+                        <input type="checkbox" class="form-check-input">
+                        <span class="lbl">关键词</span>
+                        <input type="text" class="form-control form-control-sm grow" value="海洋, 海洋世界" placeholder="如 海洋, 海洋世界">
+                        <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                    </div>
+                    <div class="mt-1"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+                </div>
+                <div>
+                    <div class="text-muted small mb-1">2. 特征列规则 · 列名含关键词 → 该行归本项目</div>
+                    <div class="rule-row">
+                        <input type="checkbox" class="form-check-input">
+                        <span class="lbl">列名</span>
+                        <input type="text" class="form-control form-control-sm" style="width:150px;" placeholder="如 项目">
+                        <span class="lbl">关键词</span>
+                        <input type="text" class="form-control form-control-sm grow" placeholder="如 海洋, 海洋世界">
+                        <button class="btn btn-sm btn-link text-danger py-0 px-1">×</button>
+                    </div>
+                    <div class="mt-1"><button class="btn btn-sm btn-outline-primary py-0 px-2">+ 添加规则</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 列映射 -->
+    <div class="pane" id="step4">
+        <div class="card mb-3 rule-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div><strong>列映射</strong>
+                    <span class="text-muted small ms-2">文件列 → mart.bill_persons 字段</span>
+                </div>
+                <div>
+                    <span class="text-muted small">规则：</span>
+                    <select class="form-select form-select-sm d-inline-block" style="width:380px;">
+                        <option>规则 1：部门, 金额, 综合单价（老格式 handler=standard）</option>
+                        <option>规则 2：部门, 姓名, 实发工资, 夜班补贴（南斗星汇总 handler=standard）</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body">
+
+                <!-- 账单字段比考勤少很多：mart.bill_persons 实际就 name_raw + amount + extra_data -->
+                <table class="table table-sm mb-0" style="font-size:13px;">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:200px;">mart 字段</th>
+                            <th style="width:30px; text-align:center;">←</th>
+                            <th>文件列名（支持 * 通配；空=不映射）</th>
+                            <th style="width:30%;">说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>姓名</strong> <code class="text-muted small">name_raw</code> <span class="text-danger small">*</span></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" value="姓名"></td>
+                            <td class="small text-muted">必填，空姓名行 → 走 bill_totals</td>
+                        </tr>
+                        <tr>
+                            <td><strong>金额</strong> <code class="text-muted small">amount</code> <span class="text-danger small">*</span></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" value="金额"></td>
+                            <td class="small text-muted">必填；可选项：实发工资 / 总工时工资 / 综合金额</td>
+                        </tr>
+                        <tr>
+                            <td><strong>身份证</strong> <code class="text-muted small">id_card_raw</code></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" placeholder=""></td>
+                            <td class="small text-muted">可选（mart.bill_persons 暂未存，但识别用作匹配 worker）</td>
+                        </tr>
+                        <tr>
+                            <td><strong>部门</strong> <code class="text-muted small">extra_data.部门</code></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" value="部门"></td>
+                            <td class="small text-muted">非 mart 字段，归 extra_data</td>
+                        </tr>
+                        <tr>
+                            <td><strong>备注</strong> <code class="text-muted small">extra_data</code></td>
+                            <td class="text-center text-muted">←</td>
+                            <td><input type="text" class="form-control form-control-sm" value="工时, 综合单价, 夜班补贴, 奖励, 罚款" placeholder="多列名逗号分隔"></td>
+                            <td class="small text-muted">未映射列全装 JSON</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="alert alert-light border mt-3 mb-0 small">
+                    <strong>必填</strong>：<code>姓名</code> + <code>金额</code>。<br>
+                    <strong>账单和考勤的差异</strong>：账单 mart 字段极少（就 name_raw + amount），考勤有 11 个；
+                    所以"列映射"的字段表非常短，但<strong>特征列</strong>反而更复杂（2 组 OR）。
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="text-end mb-4">
+        <button class="btn btn-primary">保存账单识别规则</button>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.querySelectorAll('#step-nav button').forEach(b => {
+    b.addEventListener('click', () => {
+        document.querySelectorAll('#step-nav button').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        const target = b.dataset.pane;
+        document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+        document.getElementById(target).classList.add('active');
+    });
+});
+</script>
+
+</body>
+</html>

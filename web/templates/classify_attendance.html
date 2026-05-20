@@ -1,0 +1,746 @@
+{% extends "base.html" %}
+{% block title %}数据识别 · 考勤 · {{ project_id }}{% endblock %}
+{% block content %}
+<style>
+    .rule-card { box-shadow:none; border:1px solid #e9ecef; }
+    .empty-stub { color:#999; font-size:13px; padding:8px 12px; background:#fafafa; border-radius:4px; border:1px dashed #ddd; }
+    .rule-row { display:flex; gap:8px; align-items:center; padding:6px 0; border-bottom:1px dashed #eee; font-size:13px; }
+    .rule-row:last-child { border-bottom:0; }
+    .rule-row .lbl { color:#666; font-size:12px; min-width:50px; flex-shrink:0; }
+    .rule-row .grow { flex-grow:1; }
+    .step-nav { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+    .step-nav button { border:1px solid #dde2ea; background:#fff; padding:6px 14px; border-radius:4px; cursor:pointer; font-size:14px; }
+    .step-nav button.active { background:#4a6cf7; color:#fff; border-color:#4a6cf7; }
+    .pane { display:none; }
+    .pane.active { display:block; }
+</style>
+
+<!-- 顶部：返回 + 标题 -->
+<div class="d-flex align-items-center mb-3 mt-3">
+    <a href="/projects/{{ project_id }}/formats" class="btn btn-outline-secondary btn-sm">&larr; format 管理</a>
+    <h5 class="mb-0 ms-3">
+        数据识别 · <span class="text-primary" id="proj-title">--</span>
+        <span class="text-muted small ms-2" id="proj-meta"></span>
+    </h5>
+    <div class="ms-auto d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" onclick="seedDefault()">应用默认模板</button>
+        <button class="btn btn-outline-primary btn-sm" disabled title="后续支持">从其他项目复制规则</button>
+    </div>
+</div>
+
+<!-- format 模式横幅 -->
+<div id="format-banner" class="d-none alert alert-primary py-2 small mb-3" style="background:linear-gradient(90deg,#4a6cf7 0%,#6f87ff 100%); color:#fff; border:none;">
+    <strong>📐 format 模式</strong>
+    当前 format: <strong id="format-banner-name">…</strong>
+    <span class="ms-2 opacity-75">本页规则仅对该 format 命中的数据生效</span>
+    <a href="/projects/{{ project_id }}/formats" class="float-end text-white" style="text-decoration:underline;">切换 format →</a>
+</div>
+
+
+<!-- 6 步骤入口（pivot 模板 sub-tab 仅 handler=pivot_attendance 时显示） -->
+<div class="step-nav" id="step-nav">
+    <button class="active" data-pane="step1">文件类型归属</button>
+    <button data-pane="step2">企业归属</button>
+    <button data-pane="step3">项目归属</button>
+    <button data-pane="step4">列映射</button>
+    <button data-pane="step5">数据过滤</button>
+    <a href="/unit-prices/{{ project_id }}" target="_blank" class="btn btn-sm" style="border:1px solid #dde2ea; background:#fff; padding:6px 14px; border-radius:4px; font-size:14px; color:#212529; text-decoration:none;">单价配置 →</a>
+    <button data-pane="step7" id="btn-step7-pivot" style="display:none;">pivot 模板</button>
+</div>
+
+<!-- 文件类型归属 -->
+<div class="pane active" id="step1">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>文件类型归属</strong>
+            <span class="text-muted small ms-2">每条规则 = 特征列（表头里必含的列名，<strong>空格分隔</strong>；列名本身含空格用 <code>!!!</code> 替代）</span>
+        </div>
+        <div class="card-body" id="step1-body">
+            <div class="text-muted small">加载中…</div>
+        </div>
+    </div>
+</div>
+
+<!-- 企业归属 -->
+<div class="pane" id="step2">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>企业归属</strong>
+            <span class="text-muted small ms-2">多劳务公司混在同一份考勤时启用；命中规则的行<strong>不入 mart</strong>（区别于"数据过滤"是入库后标 invalid）</span>
+        </div>
+        <div class="card-body" id="step2-body">
+            <div class="text-muted small">加载中…</div>
+        </div>
+    </div>
+</div>
+
+<!-- 三、项目归属（接 attribution_panel.js） -->
+<div class="pane" id="step3">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>归属规则</strong>
+            <span class="text-muted small ms-2">企业过滤 + 项目过滤（多劳务公司 / 单文件多项目场景）</span>
+        </div>
+        <div class="card-body" id="step3-body">
+            <div class="text-muted small">加载中…</div>
+        </div>
+    </div>
+</div>
+
+<!-- 列映射 -->
+<div class="pane" id="step4">
+    <div class="card mb-3 rule-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div><strong>列映射</strong>
+                <span class="text-muted small ms-2">文件列 → mart.attendance 字段（每条规则独立配置）</span>
+            </div>
+            <div>
+                <span class="text-muted small">规则：</span>
+                <select id="cm-rule-select" class="form-select form-select-sm d-inline-block" style="width:380px;"></select>
+            </div>
+        </div>
+        <div class="card-body" id="step4-body">
+
+            <!-- 固定字段列表，每个 mart 字段一行；用户填对应文件列名（空=不映射） -->
+            <table class="table table-sm mb-0" style="font-size:13px;">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:200px;">mart 字段</th>
+                        <th style="width:30px; text-align:center;">←</th>
+                        <th>文件列名（支持 * 通配；空=不映射）</th>
+                        <th style="width:30%;">说明</th>
+                    </tr>
+                </thead>
+                <tbody id="cm-tbody">
+                    <tr>
+                        <td><strong>日期</strong> <code class="text-muted small">shift_date</code> <span class="text-danger small">*</span></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="shift_date"></td>
+                        <td class="small text-muted">必填</td>
+                    </tr>
+                    <tr>
+                        <td><strong>姓名</strong> <code class="text-muted small">name_raw</code> <span class="text-danger small">*</span></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="name_raw"></td>
+                        <td class="small text-muted">必填</td>
+                    </tr>
+                    <tr>
+                        <td><strong>工时</strong> <code class="text-muted small">hours</code> <span class="text-warning small">⚪</span></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="hours"></td>
+                        <td class="small text-muted">⚪ hours / quantity 二选一</td>
+                    </tr>
+                    <tr>
+                        <td><strong>件数</strong> <code class="text-muted small">quantity</code> <span class="text-warning small">⚪</span></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="quantity"></td>
+                        <td class="small text-muted">计件项目用</td>
+                    </tr>
+                    <tr>
+                        <td><strong>岗位</strong> <code class="text-muted small">worker_type</code></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="worker_type"></td>
+                        <td class="small text-muted">如 装卸工/分拣员/司机</td>
+                    </tr>
+                    <tr>
+                        <td><strong>部门</strong> <code class="text-muted small">floor_or_group</code></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="floor_or_group"></td>
+                        <td class="small text-muted">如 A区仓/餐务部</td>
+                    </tr>
+                    <tr>
+                        <td><strong>类型</strong> <code class="text-muted small">worker_class</code></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="worker_class"></td>
+                        <td class="small text-muted">临时工 / 长期工</td>
+                    </tr>
+                    <tr>
+                        <td><strong>班次</strong> <code class="text-muted small">shift_name</code></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="shift_name"></td>
+                        <td class="small text-muted">白班 / 夜班 / ...</td>
+                    </tr>
+                    <tr>
+                        <td><strong>身份证</strong> <code class="text-muted small">id_card_raw</code></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="id_card_raw"></td>
+                        <td class="small text-muted">进 attendance 行（冗余）</td>
+                    </tr>
+                    <tr>
+                        <td><strong>手机号</strong> <code class="text-muted small">mobile</code></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="mobile"></td>
+                        <td class="small text-muted">进 workers 表，用作工人匹配</td>
+                    </tr>
+                    <tr>
+                        <td><strong>备注</strong> <code class="text-muted small">extra_data</code></td>
+                        <td class="text-center text-muted">←</td>
+                        <td><input type="text" class="form-control form-control-sm" data-cm="extra_data" placeholder="多列名空格分隔（兼容逗号），如：序号 银行卡号"></td>
+                        <td class="small text-muted">多列；全装 JSON（key=列名 value=单元格值）</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="alert alert-light border mt-3 mb-0 small">
+                <strong>必填</strong>：<code>日期</code> + <code>姓名</code> + (<code>工时</code> 或 <code>件数</code>)。<br>
+                <strong>specialized handler 的规则</strong>（双区域 / 长期工 pivot 等）：列映射由代码层处理，本表不生效。
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 数据过滤 -->
+<div class="pane" id="step5">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>数据过滤</strong>
+            <span class="text-muted small ms-2">每条规则 = 特征列 + 过滤列 + 关键词（包含/排除）；命中规则的行 → is_valid=0，即视为无效数据</span>
+        </div>
+        <div class="card-body" id="step5-body">
+            <div class="text-muted small">加载中…</div>
+        </div>
+    </div>
+</div>
+
+<!-- pivot 模板（横向 pivot 考勤独有） -->
+<div class="pane" id="step7">
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>pivot 模板</strong>
+            <span class="text-muted small ms-2">handler=pivot_attendance 必须配；定义"在 xlsx 哪一行找日期标号、字段表头怎么对齐"</span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label small mb-1">模板名 <span class="text-muted">(辅助识别，不影响解析)</span></label>
+                    <input id="pv-name" type="text" class="form-control form-control-sm" placeholder="月度横向 / 京东日期占2列 / ...">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">扫描起始行</label>
+                    <input id="pv-scan-start" type="number" min="1" class="form-control form-control-sm" value="1">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">扫描终止行</label>
+                    <input id="pv-scan-end" type="number" min="1" class="form-control form-control-sm" value="10">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">最少连续日期数</label>
+                    <input id="pv-min-digits" type="number" min="1" class="form-control form-control-sm" value="10">
+                </div>
+            </div>
+            <div class="alert alert-info py-2 small mb-2">
+                <strong>静态字段映射</strong> — 行级字段（每行一个工人）从这些列读，不参与 pivot
+            </div>
+            <div class="row g-2 mb-2">
+                <div class="col-md-3"><label class="form-label small mb-1">姓名列 (name_raw)</label>
+                    <input id="pv-col-name" class="form-control form-control-sm" placeholder="如: 姓名"></div>
+                <div class="col-md-3"><label class="form-label small mb-1">部门/班组列 (floor_or_group)</label>
+                    <input id="pv-col-floor" class="form-control form-control-sm" placeholder="如: 所在部门 / 机构全称"></div>
+                <div class="col-md-3"><label class="form-label small mb-1">班次列 (shift_name)</label>
+                    <input id="pv-col-shift" class="form-control form-control-sm" placeholder="如: 班别"></div>
+                <div class="col-md-3"><label class="form-label small mb-1">extra_data 列 <span class="text-muted">(空格分隔)</span></label>
+                    <input id="pv-col-extra" class="form-control form-control-sm" placeholder="如: 用户编码 用工性质"></div>
+            </div>
+            <div class="row g-2 mb-3">
+                <div class="col-md-2 d-flex align-items-center">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="pv-enabled" checked>
+                        <label class="form-check-label" for="pv-enabled">启用</label>
+                    </div>
+                </div>
+                <div class="col-md-10">
+                    <input id="pv-note" class="form-control form-control-sm" placeholder="备注（可选）">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 保存 -->
+<div class="text-end mb-4">
+    <button class="btn btn-primary" onclick="saveAllRules()">保存考勤识别规则</button>
+</div>
+
+<script src="{{ url_for('static', filename='js/attribution_panel.js') }}"></script>
+<script>
+const PID = {{ project_id|tojson }};
+const KIND = 'attendance';
+// format 模式：URL 上带 format_id → 配置该 format 的规则；不带 → 老模式（全 kind 共享）
+const FORMAT_ID = new URLSearchParams(location.search).get('format_id') || null;
+const FMT_QS = FORMAT_ID ? `?format_id=${FORMAT_ID}` : '';
+let CURRENT_HANDLER = 'standard';  // loadFormatBanner 后更新
+
+// step nav 切换
+document.querySelectorAll('#step-nav button').forEach(b => {
+    b.addEventListener('click', () => {
+        document.querySelectorAll('#step-nav button').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        const target = b.dataset.pane;
+        document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+        document.getElementById(target).classList.add('active');
+    });
+});
+
+function escapeHtml(s) {
+    return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ============ 顶部信息 ============
+async function loadProject() {
+    const r = await fetch(`/api/projects/${PID}/classify/overview`);
+    const d = await r.json();
+    if (d.meta) {
+        document.getElementById('proj-title').textContent = d.meta.title;
+        document.getElementById('proj-meta').textContent = `${d.meta.enterprise_short} / 线上 ID ${d.meta.project_id}`;
+    }
+}
+
+// ============ step1: 文件类型归属 ============
+let classifyRules = [];
+
+async function loadClassify() {
+    const r = await fetch(`/api/projects/${PID}/classify/rules/${KIND}${FMT_QS}`);
+    classifyRules = await r.json();
+    renderClassify();
+    renderCmSelector();
+}
+
+function renderClassify() {
+    const body = document.getElementById('step1-body');
+    // 空时插入一条空白未启用模板行
+    if (!classifyRules.length) {
+        classifyRules.push({id:null, priority:100, match_columns:[], match_columns_any:null, match_excludes:null,
+            scan_rows:10, handler:'standard', column_mapping:null, enabled:false, match_count:0, note:''});
+    }
+    let html = '';
+    classifyRules.forEach((r, idx) => {
+        // 列表里渲染：真实空格 → !!!，列与列之间用空格连接
+        const mc = (r.match_columns || []).map(s => s.replace(/ /g, '!!!')).join(' ');
+        const mex = (r.match_excludes || []).map(s => s.replace(/ /g, '!!!')).join(' ');
+        html += `
+        <div class="rule-row" data-idx="${idx}">
+            <label class="d-flex align-items-center gap-1" style="font-size:12px;color:#444;cursor:pointer;"><input type="checkbox" class="form-check-input" data-fld="enabled" ${r.enabled?'checked':''}>启用</label>
+            <span class="lbl">特征列</span>
+            <input type="text" class="form-control form-control-sm grow" data-fld="match_columns" value="${escapeHtml(mc)}" placeholder="表头必含的列名，空格分隔">
+            <span class="lbl">排除列</span>
+            <input type="text" class="form-control form-control-sm grow" data-fld="match_excludes" value="${escapeHtml(mex)}" placeholder="任一出现即不匹配（可空）">
+            ${r.id ? `<button class="btn btn-sm btn-link text-danger py-0 px-1" onclick="deleteClassify(${idx})">×</button>`
+                    : `<button class="btn btn-sm btn-link py-0 px-1" onclick="cancelClassify(${idx})">取消</button>`}
+        </div>`;
+    });
+    html += `<div class="mt-2"><button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="addNewClassify()">+ 添加规则</button></div>`;
+    body.innerHTML = html;
+    classifyRules.forEach((r, i) => {
+        const cb = document.querySelector(`#step1-body .rule-row[data-idx="${i}"] [data-fld="enabled"]`);
+        if (cb) cb.checked = !!r.enabled;
+    });
+}
+
+function readClassifyFromDOM(idx) {
+    const card = document.querySelector(`#step1-body .rule-row[data-idx="${idx}"]`);
+    // 空格分隔；!!! 还原为真实空格
+    const splitCols = v => v.split(/\s+/).map(s=>s.trim()).filter(Boolean).map(s=>s.replace(/!!!/g, ' '));
+    const r = classifyRules[idx];
+    const mex = splitCols(card.querySelector('[data-fld="match_excludes"]').value);
+    return {
+        id: r.id, priority: r.priority,
+        match_columns: splitCols(card.querySelector('[data-fld="match_columns"]').value),
+        match_columns_any: r.match_columns_any,
+        match_excludes: mex.length ? mex : null,
+        scan_rows: r.scan_rows || 10,
+        handler: r.handler, column_mapping: r.column_mapping,
+        enabled: card.querySelector('[data-fld="enabled"]').checked,
+        note: r.note
+    };
+}
+
+async function saveClassify(idx) {
+    const data = readClassifyFromDOM(idx);
+    if (FORMAT_ID) data.format_id = FORMAT_ID;
+    const r = await fetch(`/api/projects/${PID}/classify/rules/${KIND}`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    const res = await r.json();
+    if (res.id) await loadClassify(); else alert('保存失败');
+}
+
+async function deleteClassify(idx) {
+    const r = classifyRules[idx];
+    if (!confirm(`确定删除该规则?`)) return;
+    const resp = await fetch(`/api/projects/${PID}/classify/rules/${r.id}`, {method:'DELETE'});
+    if ((await resp.json()).deleted) await loadClassify();
+}
+
+function cancelClassify(idx) { classifyRules.splice(idx,1); renderClassify(); }
+function addNewClassify() {
+    classifyRules.push({id:null, priority:100, match_columns:[], match_columns_any:null, match_excludes:null,
+        scan_rows:10, handler:'standard', column_mapping:null, enabled:true, match_count:0, note:''});
+    renderClassify();
+}
+
+// ============ step4: 列映射 ============
+function renderCmSelector() {
+    const sel = document.getElementById('cm-rule-select');
+    if (!classifyRules.length) { sel.innerHTML = '<option>无规则</option>'; return; }
+    sel.innerHTML = classifyRules.map((r,i) => {
+        const mc = (r.match_columns||[]).map(s=>s.replace(/ /g, '!!!')).join(' ');
+        return `<option value="${i}">规则 ${i+1}：${escapeHtml(mc)}（${escapeHtml(r.handler)}）</option>`;
+    }).join('');
+    sel.onchange = () => fillCm(sel.value);
+    fillCm(0);
+}
+
+function fillCm(idx) {
+    idx = parseInt(idx||0);
+    const r = classifyRules[idx]; if (!r) return;
+    const cm = r.column_mapping || {};
+    document.querySelectorAll('#cm-tbody [data-cm]').forEach(inp => {
+        inp.value = cm[inp.dataset.cm] || '';
+    });
+}
+
+async function saveColumnMapping() {
+    const idx = parseInt(document.getElementById('cm-rule-select').value || 0);
+    const cm = {};
+    document.querySelectorAll('#cm-tbody [data-cm]').forEach(inp => {
+        if (inp.value.trim()) cm[inp.dataset.cm] = inp.value.trim();
+    });
+    const r = classifyRules[idx];
+    const data = {...r, column_mapping: cm};
+    const resp = await fetch(`/api/projects/${PID}/classify/rules/${KIND}`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    if ((await resp.json()).id) { await loadClassify(); alert('已保存'); }
+}
+
+// ============ step5: 数据过滤 ============
+let validityRules = [];
+const MODE_LABELS = {include:'包含', exclude:'排除', str_eq:'字符串等于', str_neq:'字符串不等', gt:'大于', lt:'小于', eq:'数值等于', not_empty:'非空', empty:'为空', col_neq:'列不等', col_eq:'列相等'};
+
+async function loadValidity() {
+    const r = await fetch(`/api/projects/${PID}/validity/rules/${KIND}${FMT_QS}`);
+    validityRules = await r.json();
+    renderValidity();
+}
+
+function renderValidity() {
+    const body = document.getElementById('step5-body');
+    if (!validityRules.length) {
+        validityRules.push({id:null, priority:100, feature_columns:[], feature_enabled:false,
+            filter_column:'', filter_enabled:true, mode:'exclude', filter_value:'',
+            is_builtin:false, enabled:false, note:''});
+    }
+    let html = '';
+    validityRules.forEach((r, idx) => {
+        const fc = (r.feature_columns||[]).join(', ');
+        const builtin = r.is_builtin ? '<span class="badge bg-secondary">内置</span>' : '';
+        const delBtn = r.is_builtin ? ''
+            : (r.id ? `<button class="btn btn-sm btn-link text-danger py-0 px-1" onclick="deleteValidity(${idx})">×</button>`
+                    : `<button class="btn btn-sm btn-link py-0 px-1" onclick="cancelNewValidity(${idx})">取消</button>`);
+        html += `
+        <div class="rule-row" data-vidx="${idx}">
+            <label class="d-flex align-items-center gap-1" style="font-size:12px;color:#444;cursor:pointer;"><input type="checkbox" class="form-check-input" data-vfld="enabled" ${r.enabled?'checked':''} ${r.is_builtin?'disabled':''}>启用</label>
+            <input type="checkbox" class="form-check-input" data-vfld="feature_enabled" ${r.feature_enabled?'checked':''}>
+            <span class="lbl">特征列</span>
+            <input type="text" class="form-control form-control-sm" style="width:200px;" data-vfld="feature_columns" value="${escapeHtml(fc)}" placeholder="不勾=所有 sheet">
+            <input type="checkbox" class="form-check-input" data-vfld="filter_enabled" ${r.filter_enabled?'checked':''}>
+            <span class="lbl">过滤列</span>
+            <input type="text" class="form-control form-control-sm" style="width:120px;" data-vfld="filter_column" value="${escapeHtml(r.filter_column||'')}">
+            <select class="form-select form-select-sm" style="width:80px;" data-vfld="mode">
+                ${Object.entries(MODE_LABELS).map(([k,v]) => `<option value="${k}" ${r.mode===k?'selected':''}>${v}</option>`).join('')}
+            </select>
+            <input type="text" class="form-control form-control-sm grow" data-vfld="filter_value" value="${escapeHtml(r.filter_value||'')}">
+            ${builtin}
+            ${delBtn}
+        </div>`;
+    });
+    html += `<div class="mt-2"><button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="addNewValidity()">+ 添加规则</button></div>
+        <div class="alert alert-light border mt-3 mb-0 small">
+            <strong>勾选语义</strong>：行首=整条规则启用；特征列前=该字段是否参与匹配（不勾=对所有 sheet 生效，多数考勤场景）；过滤列前=该字段是否参与匹配。<br>
+            <strong>模式</strong>：包含/排除（关键词字符串匹配）/ 大于/小于/等于（数值比较，关键词输数字）。<br>
+            <strong>合计行剔除</strong>是内置规则（行首 checkbox 灰，关键词可扩展不可删）。
+        </div>`;
+    body.innerHTML = html;
+}
+
+function readValidityFromDOM(idx) {
+    const card = document.querySelector(`#step5-body .rule-row[data-vidx="${idx}"]`);
+    const arr = v => v.split(',').map(s=>s.trim()).filter(Boolean);
+    const r = validityRules[idx];
+    return {
+        id: r.id, priority: r.priority,
+        feature_columns: arr(card.querySelector('[data-vfld="feature_columns"]').value),
+        feature_enabled: card.querySelector('[data-vfld="feature_enabled"]').checked,
+        filter_column: card.querySelector('[data-vfld="filter_column"]').value,
+        filter_enabled: card.querySelector('[data-vfld="filter_enabled"]').checked,
+        mode: card.querySelector('[data-vfld="mode"]').value,
+        filter_value: card.querySelector('[data-vfld="filter_value"]').value,
+        is_builtin: r.is_builtin,
+        enabled: card.querySelector('[data-vfld="enabled"]').checked,
+        note: r.note
+    };
+}
+async function saveValidity(idx) {
+    const data = readValidityFromDOM(idx);
+    const r = await fetch(`/api/projects/${PID}/validity/rules/${KIND}`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    if ((await r.json()).id) await loadValidity();
+}
+async function deleteValidity(idx) {
+    if (!confirm('删除?')) return;
+    const r = await fetch(`/api/projects/${PID}/validity/rules/${validityRules[idx].id}`, {method:'DELETE'});
+    if ((await r.json()).deleted) await loadValidity();
+}
+function cancelNewValidity(idx) { validityRules.splice(idx,1); renderValidity(); }
+function addNewValidity() {
+    validityRules.push({id:null, priority:100, feature_columns:[], feature_enabled:false,
+        filter_column:'', filter_enabled:true, mode:'exclude', filter_value:'',
+        is_builtin:false, enabled:true, note:''});
+    renderValidity();
+}
+
+// ============ step2: 企业归属 ============
+let entRules = [];
+async function loadEnterprise() {
+    const r = await fetch(`/api/projects/${PID}/enterprise/rules/${KIND}${FMT_QS}`);
+    entRules = await r.json();
+    renderEnterprise();
+}
+function renderEnterprise() {
+    const body = document.getElementById('step2-body');
+    if (!entRules.length) {
+        entRules.push({id:null, priority:100, filter_column:'', filter_value:'',
+            mode:'include', enabled:false, note:''});
+    }
+    let html = '';
+    entRules.forEach((r, idx) => {
+        const delBtn = r.id
+            ? `<button class="btn btn-sm btn-link text-danger py-0 px-1" onclick="deleteEnterprise(${idx})">×</button>`
+            : `<button class="btn btn-sm btn-link py-0 px-1" onclick="cancelNewEnterprise(${idx})">取消</button>`;
+        html += `
+        <div class="rule-row" data-eidx="${idx}">
+            <label class="d-flex align-items-center gap-1" style="font-size:12px;color:#444;cursor:pointer;"><input type="checkbox" class="form-check-input" data-efld="enabled" ${r.enabled?'checked':''}>启用</label>
+            <span class="lbl">特征列</span>
+            <input type="text" class="form-control form-control-sm" style="width:160px;" data-efld="filter_column" value="${escapeHtml(r.filter_column||'')}" placeholder="如 所属服务商 / 劳务公司">
+            <select class="form-select form-select-sm" style="width:80px;" data-efld="mode">
+                <option value="include" ${r.mode==='include'?'selected':''}>包含</option>
+                <option value="exclude" ${r.mode==='exclude'?'selected':''}>排除</option>
+            </select>
+            <span class="lbl">关键词</span>
+            <input type="text" class="form-control form-control-sm grow" data-efld="filter_value" value="${escapeHtml(r.filter_value||'')}" placeholder="如 彩携 (多个用逗号分隔)">
+            <input type="text" class="form-control form-control-sm" style="width:160px;" data-efld="note" value="${escapeHtml(r.note||'')}" placeholder="备注">
+            ${delBtn}
+        </div>`;
+    });
+    html += `<div class="mt-2"><button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="addNewEnterprise()">+ 添加规则</button></div>
+        <div class="alert alert-light border mt-3 mb-0 small">
+            <strong>语义</strong>：<code>包含</code>=该列必须含关键词才入 mart；<code>排除</code>=含关键词则丢弃。<br>
+            <strong>跟"数据过滤"区别</strong>：本步 drop 行不入 mart；step5 是入 mart 后标 is_valid=0。<br>
+            <strong>典型场景</strong>：达达系统导出含多家服务商，配 <code>所属服务商 / 包含 / 彩携</code> 只保留本企业数据。
+        </div>`;
+    body.innerHTML = html;
+    entRules.forEach((r, i) => {
+        const cb = document.querySelector(`#step2-body .rule-row[data-eidx="${i}"] [data-efld="enabled"]`);
+        if (cb) cb.checked = !!r.enabled;
+    });
+}
+function readEnterpriseFromDOM(idx) {
+    const card = document.querySelector(`#step2-body .rule-row[data-eidx="${idx}"]`);
+    const r = entRules[idx];
+    return {
+        id: r.id, priority: r.priority,
+        filter_column: card.querySelector('[data-efld="filter_column"]').value.trim(),
+        filter_value: card.querySelector('[data-efld="filter_value"]').value.trim(),
+        mode: card.querySelector('[data-efld="mode"]').value,
+        enabled: card.querySelector('[data-efld="enabled"]').checked,
+        note: card.querySelector('[data-efld="note"]').value.trim(),
+    };
+}
+async function deleteEnterprise(idx) {
+    if (!confirm('删除该企业归属规则？')) return;
+    const r = await fetch(`/api/projects/${PID}/enterprise/rules/${entRules[idx].id}`, {method:'DELETE'});
+    if ((await r.json()).deleted) await loadEnterprise();
+}
+function cancelNewEnterprise(idx) { entRules.splice(idx,1); renderEnterprise(); }
+function addNewEnterprise() {
+    entRules.push({id:null, priority:100, filter_column:'', filter_value:'',
+        mode:'include', enabled:true, note:''});
+    renderEnterprise();
+}
+
+// 单价配置已迁到独立页 /unit-prices/{pid}
+
+async function seedDefault() {
+    if (!confirm('从 DEFAULT_RULES 应用本类规则模板？已有规则会跳过（不覆盖）。')) return;
+    const r = await fetch(`/api/projects/${PID}/classify/seed`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({kind: KIND, replace: false})
+    });
+    const res = await r.json();
+    alert('seed 完成: ' + JSON.stringify(res.inserted));
+    await loadClassify();
+}
+
+
+async function saveAllRules() {
+    let ok = 0, fail = 0, skip = 0;
+    // 1. 同步当前 step4 列映射 DOM → classifyRules[selectedIdx].column_mapping
+    const sel = document.getElementById('cm-rule-select');
+    if (sel && classifyRules[parseInt(sel.value||0)]) {
+        const cm = {};
+        document.querySelectorAll('#cm-tbody [data-cm]').forEach(inp => {
+            if (inp.value.trim()) cm[inp.dataset.cm] = inp.value.trim();
+        });
+        classifyRules[parseInt(sel.value||0)].column_mapping = cm;
+    }
+    // 2. 保存 step1 文件类型归属（含列映射）
+    for (let i = 0; i < classifyRules.length; i++) {
+        const card = document.querySelector(`#step1-body .rule-row[data-idx="${i}"]`);
+        if (!card) { skip++; continue; }
+        const data = readClassifyFromDOM(i);
+        if (!data.match_columns.length) { skip++; continue; }
+        if (FORMAT_ID) data.format_id = FORMAT_ID;
+        try {
+            const r = await fetch(`/api/projects/${PID}/classify/rules/${KIND}`,
+                {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+            if ((await r.json()).id) ok++; else fail++;
+        } catch (e) { fail++; }
+    }
+    // 3. 保存 step5 数据过滤
+    const cmAddedList = [];
+    for (let i = 0; i < validityRules.length; i++) {
+        const card = document.querySelector(`#step5-body .rule-row[data-vidx="${i}"]`);
+        if (!card) { skip++; continue; }
+        const data = readValidityFromDOM(i);
+        if (!data.filter_column && !(data.feature_columns||[]).length) { skip++; continue; }
+        if (FORMAT_ID) data.format_id = FORMAT_ID;
+        try {
+            const r = await fetch(`/api/projects/${PID}/validity/rules/${KIND}`,
+                {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+            const j = await r.json();
+            if (j.id) {
+                ok++;
+                (j.column_mapping_updates || []).forEach(u => cmAddedList.push(u.added));
+            } else fail++;
+        } catch (e) { fail++; }
+    }
+    // 3.5 保存 step2 企业归属
+    for (let i = 0; i < entRules.length; i++) {
+        const card = document.querySelector(`#step2-body .rule-row[data-eidx="${i}"]`);
+        if (!card) { skip++; continue; }
+        const data = readEnterpriseFromDOM(i);
+        if (!data.filter_column || !data.filter_value) { skip++; continue; }
+        if (FORMAT_ID) data.format_id = FORMAT_ID;
+        try {
+            const r = await fetch(`/api/projects/${PID}/enterprise/rules/${KIND}`,
+                {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+            if ((await r.json()).id) ok++; else fail++;
+        } catch (e) { fail++; }
+    }
+    // 3.6 保存 step3 项目归属（含 enterprise + project scope）
+    try {
+        const res = await AttributionPanel.collectAndSave();
+        if (res && res.saved >= 0) ok++;
+    } catch (e) { fail++; }
+    // 单价配置由 /unit-prices/{pid} 独立页面维护，本页不保存
+    // 5. handler=pivot_attendance 时保存 pivot 模板
+    if (CURRENT_HANDLER === 'pivot_attendance') {
+        if (await savePivotTemplate()) ok++; else fail++;
+    }
+    let msg = `保存完成：成功 ${ok}, 失败 ${fail}, 跳过空行 ${skip}`;
+    if (cmAddedList.length) {
+        const uniq = [...new Set(cmAddedList)];
+        msg += `\n\n已自动追加到列映射 extra_data: ${uniq.join(', ')}\n（下次拉取数据时这些列会装进 mart）`;
+    }
+    alert(msg);
+    await loadClassify();
+    await loadEnterprise();
+    await loadValidity();
+}
+
+async function loadFormatBanner() {
+    try {
+        const r = await fetch(`/api/projects/${PID}/formats?kind=${KIND}`);
+        const list = await r.json();
+        const f = list.find(x => x.id === FORMAT_ID);
+        if (f) {
+            document.getElementById('format-banner').classList.remove('d-none');
+            document.getElementById('format-banner-name').textContent = f.name + ` (handler=${f.handler})`;
+            CURRENT_HANDLER = f.handler || 'standard';
+            // handler=pivot_attendance: pivot 模板 sub-tab 替换"列映射"位置
+            // （pivot 用 static_column_mapping，与普通 column_mapping 互斥）
+            if (f.handler === 'pivot_attendance') {
+                const btn4 = document.querySelector('#step-nav button[data-pane="step4"]');
+                const btn7 = document.getElementById('btn-step7-pivot');
+                if (btn4 && btn7) {
+                    btn4.style.display = 'none';
+                    btn7.style.display = '';
+                    btn4.parentNode.insertBefore(btn7, btn4);
+                }
+                loadPivotTemplate();
+            }
+        }
+    } catch (e) {}
+}
+
+async function loadPivotTemplate() {
+    try {
+        const r = await fetch(`/api/projects/${PID}/pivot-template/${KIND}${FMT_QS}`);
+        const d = await r.json();
+        document.getElementById('pv-name').value = d.template_name || '';
+        document.getElementById('pv-scan-start').value = d.scan_row_start ?? 1;
+        document.getElementById('pv-scan-end').value = d.scan_row_end ?? 10;
+        document.getElementById('pv-min-digits').value = d.min_consecutive_digits ?? 10;
+        const sm = d.static_column_mapping || {};
+        document.getElementById('pv-col-name').value  = sm.name_raw || '';
+        document.getElementById('pv-col-floor').value = sm.floor_or_group || '';
+        document.getElementById('pv-col-shift').value = sm.shift_name || '';
+        document.getElementById('pv-col-extra').value = sm.extra_data || '';
+        document.getElementById('pv-enabled').checked = d.enabled !== false;
+        document.getElementById('pv-note').value = d.note || '';
+    } catch (e) { console.error(e); }
+}
+
+async function savePivotTemplate() {
+    // 由 saveAllRules 在 handler=pivot_attendance 时统一调用；返回 true/false
+    const static_map = {};
+    const nm = document.getElementById('pv-col-name').value.trim();
+    const fl = document.getElementById('pv-col-floor').value.trim();
+    const sh = document.getElementById('pv-col-shift').value.trim();
+    const ex = document.getElementById('pv-col-extra').value.trim();
+    if (nm) static_map.name_raw = nm;
+    if (fl) static_map.floor_or_group = fl;
+    if (sh) static_map.shift_name = sh;
+    if (ex) static_map.extra_data = ex;
+
+    const payload = {
+        template_name: document.getElementById('pv-name').value.trim() || '月度横向',
+        scan_row_start: parseInt(document.getElementById('pv-scan-start').value) || 1,
+        scan_row_end: parseInt(document.getElementById('pv-scan-end').value) || 10,
+        min_consecutive_digits: parseInt(document.getElementById('pv-min-digits').value) || 10,
+        static_column_mapping: static_map,
+        enabled: document.getElementById('pv-enabled').checked,
+        note: document.getElementById('pv-note').value.trim(),
+    };
+    try {
+        const r = await fetch(`/api/projects/${PID}/pivot-template/${KIND}${FMT_QS}`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const d = await r.json();
+        return !d.error;
+    } catch (e) { return false; }
+}
+
+loadFormatBanner();
+loadProject();
+loadClassify();
+loadEnterprise();
+loadValidity();
+
+// 项目归属 panel
+AttributionPanel.init({
+    container_id: 'step3-body',
+    project_id: PID,
+    category: 'kaoqin_bill',
+    format_id: FORMAT_ID,
+    show_enterprise: true,
+});
+</script>
+{% endblock %}

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Mock · 考勤设置</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+    body { background-color: #f5f6fa; }
+    .card { border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card-header { background-color: #fff; border-bottom: 1px solid #eee; }
+    .mock-banner { background:#fff3cd; color:#664d03; padding:6px 12px; font-size:12px; text-align:center; border-bottom:1px solid #ffe69c; }
+    .opt-list { max-height:240px; overflow-y:auto; border:1px solid #e3e6f0; border-radius:6px; padding:8px 12px; background:#fff; }
+    .opt-list .form-check { margin-bottom:4px; }
+    .price-row { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+    .price-row label { min-width:90px; font-size:13px; }
+</style>
+</head>
+<body>
+
+<div class="mock-banner">⚠️ Mock 页面（考勤设置）— 用于讨论页面设计</div>
+
+<nav class="navbar navbar-dark bg-dark">
+    <div class="container"><a class="navbar-brand" href="#">小鱼风控系统</a></div>
+</nav>
+
+<div class="container mt-4">
+
+    <!-- 顶部：返回 + 标题 -->
+    <div class="d-flex align-items-center mb-3">
+        <a href="form_normal.html" class="btn btn-outline-secondary btn-sm">&larr; 返回</a>
+        <h5 class="mb-0 ms-3">考勤设置 <span class="text-muted small ms-2">云优聘 · 康丽达 · 2026-04</span></h5>
+    </div>
+
+    <div class="row">
+        <!-- 左：单价 -->
+        <div class="col-md-5">
+            <div class="card mb-3">
+                <div class="card-header"><strong>单价</strong></div>
+                <div class="card-body">
+                    <div class="price-row">
+                        <label>装卸工</label>
+                        <input type="number" class="form-control form-control-sm" value="28.5" style="max-width:140px;">
+                        <span class="text-muted small">元/小时</span>
+                    </div>
+                    <div class="price-row">
+                        <label>分拣员</label>
+                        <input type="number" class="form-control form-control-sm" value="32.0" style="max-width:140px;">
+                        <span class="text-muted small">元/小时</span>
+                    </div>
+                    <div class="price-row">
+                        <label>司机</label>
+                        <input type="number" class="form-control form-control-sm" value="42.0" style="max-width:140px;">
+                        <span class="text-muted small">元/小时</span>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary mt-1">+ 增加岗位单价</button>
+                    <div class="mt-3 small text-muted">
+                        来源：项目信息.xlsx（最近修改 2026-04-22）
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右：排除数据 -->
+        <div class="col-md-7">
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>排除数据</strong>
+                    <span class="text-muted small">勾选 = 不计入考勤合计</span>
+                </div>
+                <div class="card-body">
+
+                    <div class="row g-3">
+                        <!-- 岗位 -->
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">岗位</label>
+                            <div class="opt-list">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="p1"><label class="form-check-label" for="p1">装卸工 <span class="text-muted small">(412 条)</span></label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="p2"><label class="form-check-label" for="p2">分拣员 <span class="text-muted small">(388 条)</span></label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="p3"><label class="form-check-label" for="p3">打包员 <span class="text-muted small">(245 条)</span></label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="p4" checked><label class="form-check-label" for="p4">司机 <span class="text-muted small">(82 条)</span></label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="p5"><label class="form-check-label" for="p5">仓管 <span class="text-muted small">(108 条)</span></label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="p6" checked><label class="form-check-label" for="p6">客服 <span class="text-muted small">(34 条)</span></label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="p7"><label class="form-check-label" for="p7">安保 <span class="text-muted small">(27 条)</span></label></div>
+                            </div>
+                        </div>
+
+                        <!-- 场地 -->
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">场地</label>
+                            <div class="opt-list">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="s1"><label class="form-check-label" for="s1">A 区仓 <span class="text-muted small">(521 条)</span></label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="s2"><label class="form-check-label" for="s2">B 区仓 <span class="text-muted small">(412 条)</span></label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="s3"><label class="form-check-label" for="s3">配送中心 <span class="text-muted small">(263 条)</span></label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="s4" checked><label class="form-check-label" for="s4">干线分拨 <span class="text-muted small">(98 条)</span></label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="s5"><label class="form-check-label" for="s5">末端 <span class="text-muted small">(132 条)</span></label></div>
+                            </div>
+                        </div>
+
+                        <!-- 工人类型 -->
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">工人类型</label>
+                            <div class="opt-list">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="t1"><label class="form-check-label" for="t1">长期工 <span class="text-muted small">(982 条)</span></label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="t2"><label class="form-check-label" for="t2">临时工 <span class="text-muted small">(312 条)</span></label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="t3" checked><label class="form-check-label" for="t3">实习生 <span class="text-muted small">(46 条)</span></label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" id="t4" checked><label class="form-check-label" for="t4">替班 <span class="text-muted small">(14 条)</span></label></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-light border mt-3 mb-0 small">
+                        <strong>当前排除：</strong>
+                        岗位 <span class="badge bg-secondary">司机</span> <span class="badge bg-secondary">客服</span>
+                        · 场地 <span class="badge bg-secondary">干线分拨</span>
+                        · 工人类型 <span class="badge bg-secondary">实习生</span> <span class="badge bg-secondary">替班</span>
+                        <br>
+                        <span class="text-muted">原始 1,416 条 → 排除 132 条 → 实际进考勤 1,284 条</span>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部按钮 -->
+    <div class="d-flex justify-content-end gap-2 mb-4">
+        <a href="form_normal.html" class="btn btn-outline-secondary">取消</a>
+        <button class="btn btn-primary">保存设置</button>
+    </div>
+
+</div>
+
+</body>
+</html>

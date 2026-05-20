@@ -1,0 +1,38 @@
+# 缓存
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# 密码/凭据
+db_config.txt
+*.key
+*.pem
+
+# Notion 同步脚本（含明文 token，仅本地保留）
+scripts/sync_daily_todos.py
+scripts/sync_lawsuit_to_notion.py
+
+# 数据目录（含真实业务数据，不入仓库）
+3风控数据/
+6临时项目/
+7MCP/
+8法律/
+9人工数据/
+
+# 临时/中间产物
+temp/
+tmp/
+_temp_check/
+_mirror/
+tmp_*.xls
+tmp_*.xlsx
+pa_out.json
+ws_data.json
+etl/raw/_inspect_output.txt
+
+# IDE/系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

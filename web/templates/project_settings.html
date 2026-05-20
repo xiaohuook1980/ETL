@@ -1,0 +1,675 @@
+{% extends "base.html" %}
+
+{% block title %}项目设置{% endblock %}
+
+{% block content %}
+<style>
+    .rule-card { box-shadow:none; border:1px solid #e9ecef; }
+    .nav-tabs .nav-link.active { background:#fff; }
+    .pane { display:none; }
+    .pane.active { display:block; }
+    .sub-nav { background:#fff; border-radius:6px; padding:6px; margin-bottom:14px; display:flex; gap:6px; }
+    .sub-nav button { border:0; background:transparent; padding:6px 14px; border-radius:4px; cursor:pointer; font-size:14px; }
+    .sub-nav button.active { background:#4a6cf7; color:#fff; }
+    .scope-section { margin-bottom:18px; }
+    .scope-section h6 { font-weight:600; color:#444; padding:6px 10px; background:#f0f4ff; border-left:3px solid #4a6cf7; border-radius:4px; }
+</style>
+
+<div class="d-flex align-items-center mb-3 mt-3">
+    <a href="/projects" class="btn btn-outline-secondary btn-sm">&larr; 返回项目列表</a>
+    <h5 class="mb-0 ms-3">
+        项目设置 · <span class="text-primary" id="proj-title">--</span>
+        <span class="text-muted small ms-2" id="proj-meta"></span>
+    </h5>
+</div>
+
+<ul class="nav nav-tabs mb-3" id="top-tabs">
+    <li class="nav-item"><a class="nav-link active" href="#" data-tab="attribution">归属规则</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="kaoqin">考勤设置（排除规则）</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="payrolldate">发薪业务日期</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="basic">基本信息</a></li>
+    <li class="nav-item ms-auto"><a class="nav-link text-primary" href="/projects/{{ project_id }}/classify">数据识别配置 →</a></li>
+</ul>
+
+<!-- ========== 归属规则 ========== -->
+<div class="pane active" id="pane-attribution">
+
+    <div class="alert alert-info small p-2 mb-3">
+        <strong>过滤模型</strong>：当前文件挂在本项目下 → 按本项目规则筛出"属于本项目的数据"装入 mart。<br>
+        每条规则有"启用"勾选。<strong>未勾选</strong>=信任系统挂载位置（视为本项目数据）；<strong>勾选</strong>=按关键词命中才装入。<br>
+        <strong>考勤+账单</strong>需两层过滤：先识别"本企业行"，再识别"本项目行"；<strong>工资表/发薪流水</strong>来源已是本企业，仅需项目过滤。<br>
+        <span class="text-muted small">发薪业务日期相关规则在"发薪业务日期" tab。</span>
+    </div>
+
+    <div class="sub-nav" id="cat-nav">
+        <button class="active" data-cat="kaoqin_bill">考勤 + 账单</button>
+        <button data-cat="wage">工资表</button>
+        <button data-cat="payroll">发薪流水</button>
+    </div>
+
+    <!-- enterprise scope 区（仅考账显示） -->
+    <div class="scope-section" id="section-enterprise" style="display:none;">
+        <h6>① 企业过滤（识别本企业行；外企业行直接丢弃）</h6>
+
+        <div class="card mb-3 rule-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div><strong>Sheet 规则</strong> <span class="text-muted small">sheet 名含任一关键词 → 该 sheet 整页归本项目（按本企业判定）</span></div>
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="chk-ent-sheet-enabled">
+                    <label class="form-check-label small" for="chk-ent-sheet-enabled">启用</label>
+                </div>
+            </div>
+            <div class="card-body py-2">
+                <input type="text" id="in-ent-sheet-keywords" class="form-control form-control-sm" placeholder="如：梦寺达, 长隆 — 多个用逗号分隔" style="max-width:520px;">
+                <div class="text-muted small mt-1" id="ent-sheet-stat">--</div>
+            </div>
+        </div>
+
+        <div class="card mb-3 rule-card">
+            <div class="card-header"><strong>行级规则</strong> <span class="text-muted small">按"文件特征列"识别文件类型 → 在该文件的"提取/过滤列"里看是否含"关键词" → 决定行的归属</span></div>
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:60px;">启用</th>
+                        <th style="width:90px;">模式</th>
+                        <th style="width:170px;">列名</th>
+                        <th>关键词（任一命中）</th>
+                        <th style="width:140px;">最近匹配</th>
+                    </tr>
+                </thead>
+                <tbody id="ent-col-rows"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- project scope 区 -->
+    <div class="scope-section" id="section-project">
+        <h6 id="section-project-title">② 项目过滤（识别本项目行）</h6>
+
+        <div class="card mb-3 rule-card" id="prj-sheet-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div><strong>Sheet 规则</strong> <span class="text-muted small">sheet 名含任一关键词 → 该 sheet 归本项目</span></div>
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="chk-prj-sheet-enabled">
+                    <label class="form-check-label small" for="chk-prj-sheet-enabled">启用</label>
+                </div>
+            </div>
+            <div class="card-body py-2">
+                <input type="text" id="in-prj-sheet-keywords" class="form-control form-control-sm" placeholder="如：动物园, 动物世界" style="max-width:520px;">
+                <div class="text-muted small mt-1" id="prj-sheet-stat">--</div>
+            </div>
+        </div>
+
+        <div class="card mb-3 rule-card">
+            <div class="card-header"><strong id="prj-col-title">行级规则</strong> <span class="text-muted small">按"文件特征列"识别文件类型 → 在该文件的"提取/过滤列"里看是否含"关键词" → 决定行的归属</span></div>
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:50px;">启用</th>
+                        <th style="width:80px;">模式</th>
+                        <th style="width:200px;">文件特征列<br><span class="text-muted small fw-normal">（空格分隔列名，按顺序连续相邻出现才生效；列名含空格用 #$% 替代；空=总是生效）</span></th>
+                        <th style="width:150px;">提取/过滤列</th>
+                        <th>关键词</th>
+                        <th style="width:130px;">最近匹配</th>
+                    </tr>
+                </thead>
+                <tbody id="prj-col-rows"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="text-end mb-4">
+        <button id="btn-save" class="btn btn-primary">保存当前类规则</button>
+    </div>
+</div>
+
+<div class="pane" id="pane-kaoqin">
+
+    <div class="alert alert-info small p-2 mb-3">
+        <strong>列特征规则</strong>在 calc/对账时把 attendance 中含某些 worker_type/floor_or_group/shift_name 的行剔除（如"司机"、"实习生"、"押金"班次等）；
+        <strong>天扣除规则</strong>每天从总工时里减 N 小时（如全员每天扣午休 1 小时）。<br>
+        <span class="text-muted small">单价配置已迁到「数据识别 → 考勤 attendance → 单价配置」。</span>
+    </div>
+
+    <!-- 1. 列特征规则区：行级维度 -->
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>列特征规则（按维度过滤 attendance 行）</strong></div>
+        <div class="card-body">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:60px;">启用</th>
+                        <th style="width:170px;">维度</th>
+                        <th style="width:90px;">模式</th>
+                        <th>关键词（值含此关键词命中）</th>
+                        <th>备注</th>
+                        <th style="width:140px;">最近匹配</th>
+                        <th style="width:60px;"></th>
+                    </tr>
+                </thead>
+                <tbody id="filter-rows"></tbody>
+            </table>
+            <div class="card-footer small">
+                <button class="btn btn-sm btn-outline-primary py-0 px-2" id="btn-add-filter">+ 增加规则</button>
+                <span class="text-muted ms-2">排除优先级 &gt; 包含；启用 include 时必须命中至少一条才装入</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. 天扣除规则区：项目级单值 -->
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>天扣除规则（每天总工时固定扣除）</strong></div>
+        <div class="card-body">
+            <div class="row g-2 align-items-center">
+                <label class="col-auto col-form-label">每天扣除工时</label>
+                <div class="col-auto" style="width:140px;">
+                    <input type="number" step="0.5" min="0" class="form-control" id="input-daily-deduction" placeholder="0">
+                </div>
+                <div class="col-auto text-muted small">
+                    小时；项目级单值。calc 计算账单时：扣减金额 = 此值 × 出勤天数 × 代表单价
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="text-end mb-4">
+        <button id="btn-save-kaoqin" class="btn btn-primary">保存考勤设置</button>
+    </div>
+</div>
+<div class="pane" id="pane-payrolldate">
+
+    <div class="alert alert-info small p-2 mb-3">
+        <strong>发薪流水的业务日期判定</strong><br>
+        每条发薪记录归到哪个业务周期？两套规则配合：先<strong>指定</strong>，指定不到再<strong>推断</strong>。
+    </div>
+
+    <!-- ① 指定规则 -->
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>① 指定规则</strong> <span class="text-muted small">从字段里直接抽出业务日期，命中即用，不再推断</span></div>
+        <div class="card-body">
+            <div class="alert alert-warning small p-2 mb-3">
+                每条规则：<strong>文件特征列</strong>判断"这是哪种文件"，<strong>提取列</strong>指定从哪一列抽业务日期。<br>
+                • 文件特征列：<strong>空格分隔</strong>列名，表头里必须<strong>按顺序连续相邻出现</strong>规则才生效；列名本身含空格用 <code>#$%</code> 替代；<strong>空 = 总是生效</strong><br>
+                &nbsp;&nbsp;<span class="text-muted">用法：从表头复制几个连续列名粘贴即可（如 <code>账号 户名 金额</code>）</span><br>
+                • 提取列：内置 date 解析器扫，抽到 <strong>年+月+日</strong>（如 <code>2026.2.5</code>）→ 完整业务日；抽到 <strong>年+月</strong>（如 <code>2026.2</code>）→ 自然月业务周期可定，非自然月报错跳过；抽到 <strong>仅月</strong> → 年用 pay_time 推断<br>
+                • 所有规则都没生效或都没抽到 → 走"② 推断规则"
+            </div>
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:50px;">启用</th>
+                        <th style="width:240px;">文件特征列（空格分隔，按顺序连续相邻；空=总是生效）</th>
+                        <th style="width:240px;">提取列（| 分隔多候选）</th>
+                        <th style="width:180px;">最近命中</th>
+                    </tr>
+                </thead>
+                <tbody id="bm-rule-rows"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ② 推断规则 -->
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>② 推断规则</strong> <span class="text-muted small">从某列读 datetime 减偏移得业务日；指定规则没匹配时按此规则推</span></div>
+        <div class="card-body">
+            <div class="alert alert-warning small p-2 mb-3">
+                每条规则：文件特征列识别文件 + 推断列读 date - 偏移 = 业务日<br>
+                • 文件特征列空 = 该规则适用所有文件（兜底）<br>
+                • 推断列必填，必须是表头里能读出 date/datetime 的列（如 <code>付款时间</code>/<code>经办日</code>）<br>
+                • 偏移 N=0 即"读出来直接当业务日"；N≥1 减后跨业务周期（如月结减 1 月）<br>
+                • 都没匹配 → 最终 fallback：直接用 pay_time 当业务日
+            </div>
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:50px;">启用</th>
+                        <th style="width:240px;">文件特征列（空=所有文件）</th>
+                        <th style="width:200px;">推断列（| 分隔多候选）</th>
+                        <th style="width:90px;">偏移 N</th>
+                        <th style="width:100px;">单位</th>
+                        <th style="width:160px;">最近命中</th>
+                    </tr>
+                </thead>
+                <tbody id="bm-infer-rule-rows"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="text-end mb-4">
+        <button id="btn-save-payrolldate" class="btn btn-primary">保存业务日期规则</button>
+        <span class="text-muted small ms-2" id="payrolldate-saved-stat"></span>
+    </div>
+</div>
+
+<div class="pane" id="pane-basic">
+
+    <div class="alert alert-info small p-2 mb-3">
+        <strong>基本信息</strong>：业务周期、代收阈值、出款比例。
+    </div>
+
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>业务周期</strong></div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label small mb-1">周期类型</label>
+                    <select id="b-cycle-type" class="form-select form-select-sm">
+                        <option value="natural">自然月（每月 1 日 - 末日）</option>
+                        <option value="26_25">上月 26 - 本月 25</option>
+                        <option value="custom">自定义起始日</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-none" id="b-cycle-custom-wrap">
+                    <label class="form-label small mb-1">自定义起始日</label>
+                    <input type="number" id="b-cycle-start-day" class="form-control form-control-sm"
+                           min="1" max="31" placeholder="如 5（每月 5 号起）">
+                </div>
+            </div>
+            <div class="text-muted small mt-2">
+                业务周期决定一笔工时归属哪个业务月。改了之后历史数据要重跑解析。
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>金额参数</strong></div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small mb-1">代收阈值（元）</label>
+                    <input type="number" id="b-daishou-threshold" class="form-control form-control-sm"
+                           min="0" step="100" value="2000">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small mb-1">出款比例（0~1）</label>
+                    <input type="number" id="b-profit-ratio" class="form-control form-control-sm"
+                           min="0" max="1" step="0.01" value="0.8">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3 rule-card">
+        <div class="card-header"><strong>多项目混合</strong></div>
+        <div class="card-body">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="b-use-zhifa">
+                <label class="form-check-label" for="b-use-zhifa">
+                    <strong>用已直发金额代替发薪流水合计</strong>
+                </label>
+            </div>
+            <div class="text-muted small mt-1">
+                适用于"一份发薪流水含多个项目混合"的项目（如长隆系列每个子项目共用一份代发明细）。<br>
+                勾选后 #3 发薪流水合计 = 已直发金额（按考勤名单过滤的部分），后续 #5 等出款逻辑跟着变。<br>
+                普通项目（发薪流水仅本项目）<strong>不要勾</strong>，保持默认全发薪算入。
+            </div>
+        </div>
+    </div>
+
+    <div class="text-end mb-4">
+        <button id="btn-save-basic" class="btn btn-primary">保存基本信息</button>
+        <span class="text-muted small ms-2" id="basic-saved-stat"></span>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const projectId = "{{ project_id }}";
+let rulesData = null;
+const _initialCat = (new URLSearchParams(location.search).get('cat')) || 'kaoqin_bill';
+let currentCat = ['kaoqin_bill','wage','payroll'].includes(_initialCat) ? _initialCat : 'kaoqin_bill';
+$(function() {
+    $('#cat-nav button').removeClass('active');
+    $(`#cat-nav button[data-cat="${currentCat}"]`).addClass('active');
+});
+
+function fmt(s) { return s ? s.replace('T', ' ').slice(0, 16) : '--'; }
+function escape(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function parseKws(input) {
+    return (input || '')
+        .replace(/，/g, ',').replace(/;/g, ',').split(/[\s,]+/)
+        .map(s => s.trim()).filter(Boolean);
+}
+
+function loadRules() {
+    return $.getJSON(`/api/projects/${projectId}/attribution`, function (r) {
+        rulesData = r.rules || {};
+        if (r.meta) {
+            $('#proj-title').text(r.meta.title);
+            $('#proj-meta').text(`${r.meta.enterprise_short} / 线上 ID ${r.meta.project_id}`);
+        }
+        renderCat(currentCat);
+    });
+}
+
+function renderColumnRows(scope, prefix, cell) {
+    const $body = $('#' + prefix + '-col-rows').empty();
+    const cols = (cell.column || []).slice(0, 5);  // 最多 5 行规则(够用了)
+    while (cols.length < 5) cols.push({});
+    cols.forEach((c, i) => {
+        const stat = c.last_matched_at ? `${fmt(c.last_matched_at)} · ${c.match_count || 0} 次` : '—';
+        const checked = c.enabled ? 'checked' : '';
+        const mode = c.mode || 'include';
+        $body.append(`
+            <tr data-scope="${scope}">
+                <td class="text-center">
+                    <input type="checkbox" class="form-check-input col-enabled" data-idx="${i}" ${checked}>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm col-mode" data-idx="${i}">
+                        <option value="include" ${mode === 'include' ? 'selected' : ''}>包含</option>
+                        <option value="exclude" ${mode === 'exclude' ? 'selected' : ''}>排除</option>
+                    </select>
+                </td>
+                <td><input type="text" class="form-control form-control-sm col-fcols" data-idx="${i}" value="${escape(c.file_columns || '')}" title="空格分隔列名,按顺序连续相邻出现规则才生效;列名本身含空格用 #$% 替代;空=所有文件"></td>
+                <td><input type="text" class="form-control form-control-sm col-name" data-idx="${i}" value="${escape(c.column_names || '')}" title="目标列;| 分隔多候选,任一存在即可"></td>
+                <td><input type="text" class="form-control form-control-sm col-kws" data-idx="${i}" value="${escape((c.keywords || []).join(', '))}" title="多个用逗号分隔;包含=本项目,排除=其他项目"></td>
+                <td class="small text-muted">${stat}</td>
+            </tr>`);
+    });
+}
+
+function renderSheetRule(prefix, sheet) {
+    sheet = sheet || {};
+    $('#in-' + prefix + '-sheet-keywords').val((sheet.keywords || []).join(', '));
+    $('#chk-' + prefix + '-sheet-enabled').prop('checked', !!sheet.enabled);
+    $('#' + prefix + '-sheet-stat').text(sheet.last_matched_at
+        ? `最近匹配 ${fmt(sheet.last_matched_at)}（累计 ${sheet.match_count || 0} 次）`
+        : '尚无命中记录');
+}
+
+function renderCat(cat) {
+    currentCat = cat;
+    const catData = (rulesData && rulesData[cat]) || {};
+    const isPayroll = (cat === 'payroll');
+
+    // 企业过滤区：仅 kaoqin_bill 显示
+    $('#section-enterprise').toggle(cat === 'kaoqin_bill');
+
+    // payroll 时隐藏 sheet 规则卡(只保留行级规则);其他 cat 显示 sheet 规则
+    $('#prj-sheet-card').toggle(!isPayroll);
+
+    if (cat === 'kaoqin_bill') {
+        const ent = catData.enterprise || {sheet: null, column: []};
+        renderSheetRule('ent', ent.sheet);
+        renderColumnRows('enterprise', 'ent', ent);
+    }
+
+    const prj = catData.project || {sheet: null, column: []};
+    if (!isPayroll) renderSheetRule('prj', prj.sheet);
+    renderColumnRows('project', 'prj', prj);
+}
+
+$('#cat-nav').on('click', 'button', function () {
+    $('#cat-nav button').removeClass('active');
+    $(this).addClass('active');
+    renderCat($(this).data('cat'));
+});
+
+$('#top-tabs').on('click', '.nav-link:not(.disabled)', function (e) {
+    e.preventDefault();
+    $('#top-tabs .nav-link').removeClass('active');
+    $(this).addClass('active');
+    $('.pane').removeClass('active');
+    const tab = $(this).data('tab');
+    $('#pane-' + tab).addClass('active');
+    if (tab === 'kaoqin' && !kaoqinLoaded) loadKaoqinSettings();
+    if (tab === 'basic' && !basicLoaded) loadBasic();
+    if (tab === 'payrolldate' && !payrolldateLoaded) loadPayrollDate();
+});
+
+// 基本信息 tab 的"自定义起始日"input 切换
+$('#b-cycle-type').on('change', function () {
+    $('#b-cycle-custom-wrap').toggleClass('d-none', $(this).val() !== 'custom');
+});
+
+/* ========== 基本信息 tab ========== */
+let basicLoaded = false;
+function loadBasic() {
+    return $.getJSON(`/api/projects/${projectId}/basic`, function (r) {
+        $('#b-cycle-type').val(r.cycle_key || 'natural').trigger('change');
+        if (r.custom_start_day != null) $('#b-cycle-start-day').val(r.custom_start_day);
+        $('#b-daishou-threshold').val(r.daishou_threshold || 2000);
+        $('#b-profit-ratio').val(r.profit_ratio != null ? r.profit_ratio : 0.8);
+        $('#b-use-zhifa').prop('checked', !!r.use_zhifa_as_faxin);
+        basicLoaded = true;
+    }).fail(xhr => $('#basic-saved-stat').text('加载失败：' + (xhr.responseJSON?.error || xhr.statusText)));
+}
+$('#btn-save-basic').on('click', function () {
+    const $btn = $(this).prop('disabled', true).text('保存中…');
+    const cycleKey = $('#b-cycle-type').val();
+    const payload = {
+        cycle_key: cycleKey,
+        custom_start_day: cycleKey === 'custom'
+            ? (parseInt($('#b-cycle-start-day').val()) || null)
+            : null,
+        daishou_threshold: parseInt($('#b-daishou-threshold').val()) || 0,
+        profit_ratio: parseFloat($('#b-profit-ratio').val()) || 0,
+        use_zhifa_as_faxin: $('#b-use-zhifa').is(':checked'),
+    };
+    $.ajax({
+        url: `/api/projects/${projectId}/basic`, method: 'POST',
+        contentType: 'application/json', data: JSON.stringify(payload),
+    })
+    .done(() => { $('#basic-saved-stat').text('✓ 已保存 ' + new Date().toLocaleTimeString()); })
+    .fail(xhr => $('#basic-saved-stat').text('保存失败：' + (xhr.responseJSON?.error || xhr.statusText)))
+    .always(() => $btn.prop('disabled', false).text('保存基本信息'));
+});
+
+/* ========== 发薪业务日期 tab ========== */
+let payrolldateLoaded = false;
+function loadPayrollDate() {
+    return $.getJSON(`/api/projects/${projectId}/payroll-date`, function (r) {
+        renderBmExtractRules(r.extract_rules || []);
+        renderBmInferRules(r.infer_rules || []);
+        payrolldateLoaded = true;
+    }).fail(xhr => $('#payrolldate-saved-stat').text('加载失败：' + (xhr.responseJSON?.error || xhr.statusText)));
+}
+function renderBmExtractRules(rules) {
+    const $body = $('#bm-rule-rows').empty();
+    const list = (rules || []).slice(0, 5);
+    while (list.length < 5) list.push({});
+    list.forEach((r) => {
+        const stat = r.last_matched_at ? `${r.last_matched_at} · 累计 ${r.match_count || 0} 次` : '—';
+        $body.append(`
+            <tr>
+                <td class="text-center"><input type="checkbox" class="form-check-input bm-enabled" ${r.enabled ? 'checked' : ''}></td>
+                <td><input type="text" class="form-control form-control-sm bm-fcols" value="${escape(r.file_columns || '')}" title="空格分隔,按顺序连续相邻;空=所有文件"></td>
+                <td><input type="text" class="form-control form-control-sm bm-cols" value="${escape(r.column_names || '')}" title="| 分隔多候选,按顺序扫描"></td>
+                <td class="small text-muted">${stat}</td>
+            </tr>`);
+    });
+}
+function renderBmInferRules(rules) {
+    const $body = $('#bm-infer-rule-rows').empty();
+    const list = (rules || []).slice(0, 5);
+    while (list.length < 5) list.push({});
+    list.forEach((r) => {
+        const stat = r.last_matched_at ? `${r.last_matched_at} · 累计 ${r.match_count || 0} 次` : '—';
+        const unit = r.offset_unit || 'day';
+        $body.append(`
+            <tr>
+                <td class="text-center"><input type="checkbox" class="form-check-input bmi-enabled" ${r.enabled ? 'checked' : ''}></td>
+                <td><input type="text" class="form-control form-control-sm bmi-fcols" value="${escape(r.file_columns || '')}" title="空格分隔,按顺序连续相邻;空=所有文件"></td>
+                <td><input type="text" class="form-control form-control-sm bmi-cols" value="${escape(r.column_names || '')}" title="表头里读 date 的列,| 分隔多候选"></td>
+                <td><input type="number" class="form-control form-control-sm bmi-offn" value="${r.offset_n || 0}" min="0" max="60"></td>
+                <td>
+                    <select class="form-select form-select-sm bmi-unit">
+                        <option value="day" ${unit === 'day' ? 'selected' : ''}>日</option>
+                        <option value="month" ${unit === 'month' ? 'selected' : ''}>月</option>
+                    </select>
+                </td>
+                <td class="small text-muted">${stat}</td>
+            </tr>`);
+    });
+}
+$('#btn-save-payrolldate').on('click', function () {
+    const $btn = $(this).prop('disabled', true).text('保存中…');
+    const extract_rules = [];
+    $('#bm-rule-rows tr').each(function () {
+        const cn = $(this).find('.bm-cols').val().trim();
+        if (!cn) return;
+        extract_rules.push({
+            file_columns: $(this).find('.bm-fcols').val().trim(),
+            column_names: cn,
+            enabled: $(this).find('.bm-enabled').is(':checked'),
+        });
+    });
+    const infer_rules = [];
+    $('#bm-infer-rule-rows tr').each(function () {
+        const cn = $(this).find('.bmi-cols').val().trim();
+        if (!cn) return;
+        infer_rules.push({
+            file_columns: $(this).find('.bmi-fcols').val().trim(),
+            column_names: cn,
+            offset_n: parseInt($(this).find('.bmi-offn').val()) || 0,
+            offset_unit: $(this).find('.bmi-unit').val() || 'day',
+            enabled: $(this).find('.bmi-enabled').is(':checked'),
+        });
+    });
+    $.ajax({
+        url: `/api/projects/${projectId}/payroll-date`, method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({extract_rules, infer_rules}),
+    })
+    .done(() => { $('#payrolldate-saved-stat').text('✓ 已保存 ' + new Date().toLocaleTimeString()); })
+    .fail(xhr => $('#payrolldate-saved-stat').text('保存失败：' + (xhr.responseJSON?.error || xhr.statusText)))
+    .always(() => $btn.prop('disabled', false).text('保存业务日期规则'));
+});
+
+/* ========== 考勤设置 tab ========== */
+let kaoqinLoaded = false;
+let kaoqinData = null;
+const FILTER_DIMS = [
+    {v: 'worker_class', label: '工人类别 worker_class'},
+    {v: 'worker_type', label: '工种 worker_type'},
+    {v: 'floor_or_group', label: '场地/班组 floor_or_group'},
+    {v: 'shift_name', label: '班次名 shift_name'},
+];
+
+function loadKaoqinSettings() {
+    return $.getJSON(`/api/projects/${projectId}/kaoqin-settings`, function (r) {
+        kaoqinData = r;
+        renderFilters();
+        $('#input-daily-deduction').val(r.daily_deduction_hours || '');
+        kaoqinLoaded = true;
+    });
+}
+
+function renderFilters() {
+    const all = [];
+    FILTER_DIMS.forEach(d => {
+        (kaoqinData?.filters?.[d.v] || []).forEach(r => all.push({...r, dimension: d.v}));
+    });
+    const $body = $('#filter-rows').empty();
+    if (all.length === 0) {
+        $body.append(filterRowHtml({dimension: 'worker_class', mode: 'exclude', keyword: '', enabled: true}));
+    } else {
+        all.forEach(r => $body.append(filterRowHtml(r)));
+    }
+}
+
+function filterRowHtml(r) {
+    const stat = r.last_matched_at ? `${r.last_matched_at} · ${r.match_count || 0}` : '—';
+    const dimOpts = FILTER_DIMS.map(d =>
+        `<option value="${d.v}" ${r.dimension === d.v ? 'selected' : ''}>${d.label}</option>`
+    ).join('');
+    return `
+        <tr class="filter-row">
+            <td class="text-center"><input type="checkbox" class="form-check-input f-enabled" ${r.enabled ? 'checked' : ''}></td>
+            <td><select class="form-select form-select-sm f-dim">${dimOpts}</select></td>
+            <td>
+                <select class="form-select form-select-sm f-mode">
+                    <option value="exclude" ${r.mode === 'exclude' ? 'selected' : ''}>排除</option>
+                    <option value="include" ${r.mode === 'include' ? 'selected' : ''}>包含</option>
+                </select>
+            </td>
+            <td><input type="text" class="form-control form-control-sm f-kw" value="${escape(r.keyword || '')}" placeholder="如：司机 / 押金 / 实习生"></td>
+            <td><input type="text" class="form-control form-control-sm f-note" value="${escape(r.note || '')}"></td>
+            <td class="small text-muted">${stat}</td>
+            <td class="text-center"><button class="btn btn-sm btn-link text-danger py-0 px-1 btn-del-filter">×</button></td>
+        </tr>`;
+}
+
+$('#btn-add-filter').on('click', function () {
+    $('#filter-rows').append(filterRowHtml({dimension: 'worker_class', mode: 'exclude', keyword: '', enabled: true}));
+});
+$('#filter-rows').on('click', '.btn-del-filter', function () {
+    $(this).closest('tr').remove();
+});
+
+$('#btn-save-kaoqin').on('click', function () {
+    // 收集所有规则，按 dimension 分组
+    const filters = {worker_class: [], worker_type: [], floor_or_group: [], shift_name: []};
+    $('#filter-rows tr.filter-row').each(function () {
+        const kw = $(this).find('.f-kw').val().trim();
+        if (!kw) return;
+        const dim = $(this).find('.f-dim').val();
+        if (!filters[dim]) return;
+        filters[dim].push({
+            mode: $(this).find('.f-mode').val(),
+            keyword: kw,
+            enabled: $(this).find('.f-enabled').is(':checked'),
+            note: $(this).find('.f-note').val().trim(),
+        });
+    });
+
+    const dailyDedRaw = $('#input-daily-deduction').val();
+    const daily_deduction_hours = dailyDedRaw === '' ? 0 : parseFloat(dailyDedRaw) || 0;
+
+    const $btn = $(this).prop('disabled', true).text('保存中…');
+    $.ajax({
+        url: `/api/projects/${projectId}/kaoqin-settings`, method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({filters, daily_deduction_hours}),
+    })
+    .done(() => { kaoqinLoaded = false; loadKaoqinSettings(); alert('保存成功'); })
+    .fail(xhr => alert('保存失败：' + (xhr.responseJSON?.error || xhr.statusText)))
+    .always(() => $btn.prop('disabled', false).text('保存考勤设置'));
+});
+
+function collectScope(prefix) {
+    // payroll cat 不保存 sheet 规则
+    const sheet = (currentCat === 'payroll') ? null : {
+        keywords: parseKws($('#in-' + prefix + '-sheet-keywords').val()),
+        enabled: $('#chk-' + prefix + '-sheet-enabled').is(':checked'),
+        mode: 'include',
+    };
+
+    const columns = [];
+    $('#' + prefix + '-col-rows tr').each(function () {
+        const cn = $(this).find('.col-name').val().trim();
+        const fc = ($(this).find('.col-fcols').val() || '').trim();
+        const kws = parseKws($(this).find('.col-kws').val());
+        const enabled = $(this).find('.col-enabled').is(':checked');
+        const mode = $(this).find('.col-mode').val() || 'include';
+        // 至少一项非空即视为有效规则;file_columns 单独命中=白名单(全装入文件)
+        if (!fc && !cn && !kws.length) return;
+        columns.push({column_names: cn, file_columns: fc, keywords: kws, enabled, mode});
+    });
+    return {sheet, columns};
+}
+
+$('#btn-save').on('click', function () {
+    const payload = {rules: {}};
+    payload.rules[currentCat] = {};
+    if (currentCat === 'kaoqin_bill') {
+        payload.rules[currentCat].enterprise = collectScope('ent');
+    }
+    payload.rules[currentCat].project = collectScope('prj');
+
+    const $btn = $(this).prop('disabled', true).text('保存中…');
+    $.ajax({
+        url: `/api/projects/${projectId}/attribution`, method: 'POST',
+        contentType: 'application/json', data: JSON.stringify(payload),
+    })
+    .done(() => { loadRules(); alert('保存成功'); })
+    .fail(xhr => alert('保存失败：' + (xhr.responseJSON?.error || xhr.statusText)))
+    .always(() => $btn.prop('disabled', false).text('保存当前类规则'));
+});
+
+loadRules();
+</script>
+{% endblock %}
